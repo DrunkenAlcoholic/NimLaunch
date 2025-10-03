@@ -330,13 +330,16 @@ proc redrawWindow*() =
     cuint(config.winMaxHeight)
   )
 
-  let commandActive = config.vimMode and vimCommandBuffer.len > 0
+  let commandActive = config.vimMode and (vimCommandActive or vimCommandBuffer.len > 0)
 
   var y: cint = font.ascent + 8
-  let promptLine = config.prompt & inputText & (
-      if benchMode: "" else: config.cursor)
-  drawText(promptLine, 12, y)
-  y += config.lineHeight.cint + 6
+  if not config.vimMode:
+    let promptLine = config.prompt & inputText & (
+        if benchMode: "" else: config.cursor)
+    drawText(promptLine, 12, y)
+    y += config.lineHeight.cint + 6
+  else:
+    y += 2
 
   let total = filteredApps.len
   let maxRows = config.maxVisibleItems
@@ -361,8 +364,8 @@ proc redrawWindow*() =
       cuint(config.winWidth),
       cuint(barHeight)
     )
+    let textY = (barTop + font.ascent + 3).cint
     if vimCommandBuffer.len > 0:
-      let textY = (barTop + font.ascent + 3).cint
       XftDrawStringUtf8(
         xftDraw,
         cast[PXftColor](addr xftColorHighlightFg),

@@ -1080,101 +1080,148 @@ proc jumpToBottom() =
   let start = filteredApps.len - config.maxVisibleItems
   viewOffset = if start > 0: start else: 0
 
+proc openVimCommand(initial: string = "") =
+  vimCommandBuffer = initial
+  vimCommandActive = true
+
+proc closeVimCommand() =
+  vimCommandBuffer.setLen(0)
+  vimCommandActive = false
+
+proc executeVimCommand() =
+  let raw = vimCommandBuffer.strip()
+  closeVimCommand()
+  vimPendingG = false
+  if raw.len == 0:
+    return
+  if raw == ":q":
+    shouldExit = true
+    return
+
+  if raw[0] == ':':
+    var body = raw[1 .. ^1].strip()
+    if body.len == 0: return
+    var keyword: string
+    var rest: string
+    let sep = body.find({' ', '\t'})
+    if sep >= 0:
+      keyword = body[0 ..< sep]
+      rest = body[sep + 1 .. ^1].strip()
+    else:
+      keyword = body
+      rest = ""
+    if keyword.len == 0: return
+    let keywordLower = keyword.toLowerAscii()
+    var prefix = ""
+    case keywordLower
+    of "s": prefix = "s:"
+    of "c": prefix = "c:"
+    of "t": prefix = "t:"
+    of "r": prefix = "r:"
+    else:
+      var powerKey = config.powerPrefix
+      if powerKey.len > 0 and powerKey[^1] == ':':
+        powerKey = powerKey[0 ..< powerKey.high]
+      if powerKey.len > 0 and keywordLower == powerKey.toLowerAscii():
+        prefix = config.powerPrefix
+      else:
+        if keyword.len > 0 and keyword[^1] == ':':
+          prefix = keyword
+        else:
+          prefix = keyword & ":"
+    var assembled = prefix
+    if rest.len > 0:
+      if assembled.len == 0 or not assembled.endsWith(" "):
+        assembled.add(' ')
+      assembled.add(rest)
+    if assembled.len == 0: return
+    inputText = assembled
+    lastInputChangeMs = gui.nowMs()
+    buildActions()
+    return
+
+  if raw[0] == '!':
+    let rest = raw[1 .. ^1].strip()
+    inputText = "!" & rest
+    lastInputChangeMs = gui.nowMs()
+    buildActions()
+    return
+
+  inputText = raw
+  lastInputChangeMs = gui.nowMs()
+  buildActions()
+
 proc handleVimKey(ks: KeySym; ch: char; state: cuint): bool =
   if not config.vimMode:
     return false
 
-  if vimCommandBuffer.len > 0:
+  if vimCommandActive:
     case ks
     of XK_Return:
-      let cmd = vimCommandBuffer
-      vimCommandBuffer.setLen(0)
-      vimPendingG = false
-      if cmd == ":q":
-        shouldExit = true
-      elif cmd.len > 0 and cmd[0] == '/':
-        let pattern = if cmd.len > 1: cmd[1 .. ^1] else: ""
-        inputText = pattern
-        lastInputChangeMs = gui.nowMs()
-        buildActions()
-        vimInNormalMode = false
+      executeVimCommand()
       return true
-    of XK_BackSpace:
-      if vimCommandBuffer.len > 1:
+    of XK_BackSpace, XK_Delete:
+      if vimCommandBuffer.len > 0:
         vimCommandBuffer.setLen(vimCommandBuffer.len - 1)
       else:
-        vimCommandBuffer.setLen(0)
+        closeVimCommand()
       return true
     of XK_Escape:
-      vimCommandBuffer.setLen(0)
+      closeVimCommand()
       return true
     else:
       if ch != '\0' and ch >= ' ':
-        if vimCommandBuffer == "/" and ch == ':':
-          vimCommandBuffer = ":"
-        else:
-          vimCommandBuffer.add(ch)
+        vimCommandBuffer.add(ch)
       return true
-
-  if vimInNormalMode:
-    if ks == XK_g or ks == XK_G:
-      let uppercase = (state and ShiftMask.cuint) != 0 or ks == XK_G or ch == 'G'
-      if uppercase:
-        vimPendingG = false
-        jumpToBottom()
-      elif vimPendingG:
-        vimPendingG = false
-        jumpToTop()
-      else:
-        vimPendingG = true
-      return true
-    case ks
-    of XK_Escape:
-      vimPendingG = false
-      return true
-    of XK_i, XK_a:
-      vimInNormalMode = false
-      vimPendingG = false
-      return true
-    of XK_colon:
-      vimCommandBuffer = ":"
-      vimPendingG = false
-      return true
-    of XK_slash:
-      vimCommandBuffer = "/"
-      vimPendingG = false
-      return true
-    of XK_j:
-      vimPendingG = false
-      moveSelectionBy(1)
-      return true
-    of XK_k:
-      vimPendingG = false
-      moveSelectionBy(-1)
-      return true
-    of XK_h:
-      vimPendingG = false
-      deleteLastInputChar()
-      return true
-    of XK_l:
-      vimPendingG = false
-      activateCurrentSelection()
-      return true
-    else:
-      if ch != '\0' and ch >= ' ':
-        vimPendingG = false
-        return true
-      vimPendingG = false
-      return false
-
-  if ks == XK_Escape:
-    vimInNormalMode = true
+  
+  case ks
+  of XK_slash:
+    openVimCommand("")
     vimPendingG = false
-    if vimCommandBuffer.len > 0:
-      vimCommandBuffer.setLen(0)
     return true
-
-  return false
+  of XK_colon:
+    openVimCommand(":")
+    vimPendingG = false
+    return true
+  of XK_exclam:
+    openVimCommand("!")
+    vimPendingG = false
+    return true
+  of XK_g, XKc_G:
+    if ks == XKc_G:
+      vimPendingG = false
+      jumpToBottom()
+    elif vimPendingG:
+      vimPendingG = false
+      jumpToTop()
+    else:
+      vimPendingG = true
+    return true
+  of XK_Escape:
+    shouldExit = true
+    return true
+  of XK_j:
+    vimPendingG = false
+    moveSelectionBy(1)
+    return true
+  of XK_k:
+    vimPendingG = false
+    moveSelectionBy(-1)
+    return true
+  of XK_h:
+    vimPendingG = false
+    deleteLastInputChar()
+    return true
+  of XK_l:
+    vimPendingG = false
+    activateCurrentSelection()
+    return true
+  else:
+    if ch != '\0' and ch >= ' ':
+      vimPendingG = false
+      return true
+    vimPendingG = false
+    return false
 
 # ── Main loop ───────────────────────────────────────────────────────────
 proc main() =
@@ -1188,9 +1235,9 @@ proc main() =
   timeIt "Load Recent Apps:": loadRecent()
   timeIt "Build Actions:": buildActions()
 
-  vimInNormalMode = false
   vimPendingG = false
   vimCommandBuffer.setLen(0)
+  vimCommandActive = false
 
   initGui()
 
@@ -1271,7 +1318,7 @@ proc main() =
           cycleTheme(config)
 
         else:
-          if ch != '\0' and ch >= ' ':
+          if (not config.vimMode) and ch != '\0' and ch >= ' ':
             inputText.add(ch)
             lastInputChangeMs = gui.nowMs()
             buildActions()

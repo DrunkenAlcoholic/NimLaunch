@@ -86,7 +86,25 @@ nimble release   # produces ./bin/nimlaunch
 | **Home / End**        | Jump to top/bottom of list                                             |
 | **F5**                | Cycle built-in themes                                                  |
 | *(empty query)*       | Shows recent applications first                                        |
-| *Vim mode (optional)* | `hjkl` to move, `gg`/`G`, `:q` to exit, `/` to search, `i`/`a` back to insert                              |
+| *Vim mode (optional)* | `hjkl` to navigate, `gg` / `Shift+G` to jump, `/` opens bottom command bar, `:s` / `:c` / `:t` / `:r` mirror built-ins, `!` runs shell, `:q` exits |
+
+---
+
+## Application discovery
+
+NimLaunch scans `.desktop` launchers from the standard locations on each run and
+caches the results (with timestamps) in `~/.cache/nimlaunch/apps.json`. The
+directories are searched in this order:
+
+1. `~/.local/share/applications`
+2. `~/.local/share/flatpak/exports/share/applications`
+3. `/usr/share/applications`
+4. `/var/lib/flatpak/exports/share/applications`
+
+Entries marked `NoDisplay=true`, `Terminal=true`, or categorised strictly as
+`Settings`/`System` are skipped so the list stays focused on launchable
+applications. Everything else – native packages, Flatpaks, and user-installed
+shortcuts – appears exactly once in the results.
 
 ---
 
@@ -152,6 +170,18 @@ matchFgColorHex        = "#f8c291"
 [theme]
 last_chosen = "Nord"
 ```
+
+### Vim mode quick reference
+
+When `vim_mode = true`, NimLaunch stays in a Vim-style *normal* mode:
+
+- `/` opens the bottom command bar for typing a search query (press `Enter` to apply it).
+- `:` opens the bar pre-filled with `:` so you can run built-ins `:s`, `:c`, `:t`, `:r`, or any custom prefix (e.g., `:p`, `:g`).
+- `!` opens the bar for shell commands (equivalent to the classic `!` prefix).
+- `hjkl` move the selection; `gg` jumps to the top; `Shift+G` jumps to the bottom.
+- `:q` quits NimLaunch; `Esc` also exits when no command is open.
+- The highlighted bar at the bottom replaces the top search field while the command bar is active.
+
 
 ### Custom shortcuts
 

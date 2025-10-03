@@ -130,8 +130,8 @@ var
   shortcuts*: seq[Shortcut]
   powerActions*: seq[PowerAction]
   vimCommandBuffer*: string
-  vimInNormalMode*: bool = false
   vimPendingG*: bool = false
+  vimCommandActive*: bool = false
 
 # ── Constants ───────────────────────────────────────────────────────────
 const
