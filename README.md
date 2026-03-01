@@ -51,14 +51,16 @@ cd NimLaunch
 
 ```bash
 nimble -y nimDebug    # debug build -> ./bin/nimlaunch
-nimble -y nimRelease  # release build(custom flags) -> ./bin/nimlaunch
+nimble -y nimRelease  # release build for current CPU (fastest on this machine) -> ./bin/nimlaunch
+nimble -y nimReleasePortable  # portable + smaller release build (generic x86_64 baseline) -> ./bin/nimlaunch
 ```
 
 For a more portable release build (via Zig/clang), use:
 
 ```bash
 nimble -y zigDebug    # debug build -> ./bin/nimlaunch
-nimble -y zigRelease  # release build(custom flags) -> ./bin/nimlaunch
+nimble -y zigRelease  # release build for current CPU via Zig/clang -> ./bin/nimlaunch
+nimble -y zigReleasePortable  # portable + smaller Zig/clang release build (generic x86_64 baseline) -> ./bin/nimlaunch
 ```
 
 Or compile directly with Nim:
