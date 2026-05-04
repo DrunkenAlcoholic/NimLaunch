@@ -3,8 +3,9 @@
 ##
 ## Side effects:
 ##   • recent-application JSON persistence
+##   • app-usage JSON persistence
 
-import std/[os, strutils, json, options]
+import std/[os, strutils, json, options, times, tables]
 import ./[state, paths]
 
 # ── Shell helpers ───────────────────────────────────────────────────────
@@ -38,6 +39,7 @@ proc parseHexRgb8*(hex: string): Option[Rgb] =
 
 # ── Recent/MRU (applications) persistence ───────────────────────────────
 let recentFile* = cacheDir() / "recent.json"
+let usageFile* = cacheDir() / "usage.json"
 
 proc loadRecent*() =
   ## Populate state.recentApps from disk; log on error.
@@ -55,3 +57,38 @@ proc saveRecent*() =
     writeFile(recentFile, pretty(%state.recentApps))
   except CatchableError as e:
     echo "saveRecent warning: ", recentFile, " (", e.name, "): ", e.msg
+
+proc loadUsage*() =
+  ## Populate per-app usage stats from disk; log on error.
+  appUsage = initTable[string, AppUsage]()
+  if fileExists(usageFile):
+    try:
+      let j = parseJson(readFile(usageFile))
+      appUsage = j.to(Table[string, AppUsage])
+    except CatchableError as e:
+      echo "loadUsage warning: ", usageFile, " (", e.name, "): ", e.msg
+
+proc saveUsage*() =
+  ## Persist per-app usage stats to disk; log on error.
+  try:
+    createDir(usageFile.parentDir)
+    writeFile(usageFile, pretty(%appUsage))
+  except CatchableError as e:
+    echo "saveUsage warning: ", usageFile, " (", e.name, "): ", e.msg
+
+proc recordAppLaunch*(name: string) =
+  ## Update MRU ordering and persistent launch stats for an app-like action.
+  if name.len == 0:
+    return
+  let ri = recentApps.find(name)
+  if ri >= 0:
+    recentApps.delete(ri)
+  recentApps.insert(name, 0)
+  if recentApps.len > maxRecent:
+    recentApps.setLen(maxRecent)
+  var stats = appUsage.getOrDefault(name)
+  inc stats.launchCount
+  stats.lastLaunched = epochTime().int64
+  appUsage[name] = stats
+  saveRecent()
+  saveUsage()

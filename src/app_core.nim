@@ -63,6 +63,22 @@ proc pickIcon(app: DesktopApp): string =
     return iconAliases[base]
   base
 
+proc pickDesktopActionIcon(app: DesktopApp; action: DesktopEntryAction): string =
+  if action.icon.len > 0:
+    return action.icon
+  pickIcon(app)
+
+proc addDesktopActionRows(rows: var seq[Action]; app: DesktopApp) =
+  for desktopAction in app.desktopActions:
+    let iconName = if config.showIcons: pickDesktopActionIcon(app, desktopAction) else: ""
+    rows.add Action(
+      kind: akAppAction,
+      label: app.name & " · " & desktopAction.name,
+      exec: desktopAction.exec,
+      appData: app,
+      iconName: iconName
+    )
+
 # ── Single-instance helpers ────────────────────────────────────────────
 when defined(posix):
   const
@@ -400,6 +416,36 @@ proc buildSearchActions(rest: string): seq[Action] =
   if result.len == 0:
     result.add Action(kind: akPlaceholder, label: "No matches", exec: "")
 
+proc buildDmenuActions(rest: string): seq[Action] =
+  ## Dmenu mode — filter stdin-provided lines and return the raw selection.
+  let query = rest
+  if query.len == 0:
+    for item in dmenuItems:
+      result.add Action(kind: akDmenu, label: item, exec: item, iconName: "")
+  else:
+    var top = initHeapQueue[(int, int)]()
+    let limit = max(250, config.maxVisibleItems * 8)
+    for i, item in dmenuItems:
+      let s = scoreMatch(query, item, item, "")
+      if s > -1_000_000:
+        push(top, (s, i))
+        if top.len > limit:
+          discard pop(top)
+    var ranked: seq[(int, int)] = @[]
+    while top.len > 0:
+      ranked.add pop(top)
+    ranked.sort(proc(a, b: (int, int)): int =
+      result = cmp(b[0], a[0])
+      if result == 0:
+        result = cmp(a[1], b[1])
+    )
+    for item in ranked:
+      let label = dmenuItems[item[1]]
+      result.add Action(kind: akDmenu, label: label, exec: label, iconName: "")
+
+  if result.len == 0:
+    result.add Action(kind: akPlaceholder, label: "No matches", exec: "")
+
 proc buildDefaultActions(rest: string; defaultIndex: var int): seq[Action] =
   ## Default launcher view — MRU when empty, fuzzy search otherwise.
   defaultIndex = 0
@@ -417,18 +463,26 @@ proc buildDefaultActions(rest: string; defaultIndex: var int): seq[Action] =
             appData: app, iconName: iconName)
         seen.incl name
 
+    var remaining: seq[DesktopApp] = @[]
     for app in allApps:
       if not seen.contains(app.name):
-        let iconName = if config.showIcons: pickIcon(app) else: ""
-        result.add Action(kind: akApp, label: app.name, exec: app.exec,
-            appData: app, iconName: iconName)
+        remaining.add app
+    remaining.sort(proc(a, b: DesktopApp): int =
+      result = cmp(usageBoost(b.name), usageBoost(a.name))
+      if result == 0:
+        result = cmpIgnoreCase(a.name, b.name)
+    )
+    for app in remaining:
+      let iconName = if config.showIcons: pickIcon(app) else: ""
+      result.add Action(kind: akApp, label: app.name, exec: app.exec,
+          appData: app, iconName: iconName)
   else:
     var top = initHeapQueue[(int, int)]()
     let limit = max(DefaultAppSearchCap, config.maxVisibleItems * 8)
     for i, app in allApps:
       let s = scoreMatch(rest, app.name, app.name, "")
       if s > -1_000_000:
-        push(top, (s + recentBoost(app.name), i))
+        push(top, (s + recentBoost(app.name) + usageBoost(app.name), i))
         if top.len > limit: discard pop(top)
     var ranked: seq[(int, int)] = @[]
     while top.len > 0: ranked.add pop(top)
@@ -436,11 +490,16 @@ proc buildDefaultActions(rest: string; defaultIndex: var int): seq[Action] =
       result = cmp(b[0], a[0])
       if result == 0: result = cmpIgnoreCase(allApps[a[1]].name, allApps[b[1]].name)
     )
+    let queryLower = rest.toLowerAscii
     for item in ranked:
       let app = allApps[item[1]]
       let iconName = if config.showIcons: pickIcon(app) else: ""
       result.add Action(kind: akApp, label: app.name, exec: app.exec,
           appData: app, iconName: iconName)
+      let appLower = app.name.toLowerAscii
+      if app.desktopActions.len > 0 and (appLower == queryLower or
+          appLower.startsWith(queryLower)):
+        addDesktopActionRows(result, app)
 
   if result.len == 0:
     result.add Action(kind: akPlaceholder, label: "No applications found", exec: "")
@@ -498,6 +557,11 @@ proc updateDisplayRows(cmd: CmdKind; highlightQuery: string;
 # ── Build actions & mirror to filteredApps ─────────────────────────────
 proc buildActions*() =
   ## Populate `actions` based on `inputText`; mirror to GUI lists/spans.
+  if dmenuMode:
+    actions = buildDmenuActions(inputText)
+    updateDisplayRows(ckNone, inputText, 0)
+    return
+
   let (cmd, rest, shortcutIdx, groupName) = parseCommand(inputText)
   var defaultIndex = 0
   var nextActions: seq[Action] = @[]
@@ -552,14 +616,21 @@ proc performAction*(a: Action) =
     ## safer: strip .desktop field codes before launching
     let sanitized = parser.stripFieldCodes(a.exec).strip()
     if spawnShellCommand(sanitized):
-      let ri = recentApps.find(a.label)
-      if ri >= 0: recentApps.delete(ri)
-      recentApps.insert(a.label, 0)
-      if recentApps.len > maxRecent: recentApps.setLen(maxRecent)
-      saveRecent()
+      recordAppLaunch(a.label)
     else:
       gui.notifyStatus("Failed: " & a.label, 1600)
       exitAfter = false
+  of akAppAction:
+    ## safer: strip .desktop field codes before launching
+    let sanitized = parser.stripFieldCodes(a.exec).strip()
+    if spawnShellCommand(sanitized):
+      recordAppLaunch(a.appData.name)
+    else:
+      gui.notifyStatus("Failed: " & a.label, 1600)
+      exitAfter = false
+  of akDmenu:
+    dmenuOutput = a.exec
+    dmenuAccepted = true
   of akShortcut:
     case a.shortcutMode
     of smUrl:
@@ -608,7 +679,10 @@ proc performAction*(a: Action) =
     exitAfter = false
   of akPlaceholder:
     exitAfter = false
-  if exitAfter: shouldExit = true
+  if a.kind == akDmenu:
+    shouldExit = true
+  elif exitAfter:
+    shouldExit = true
 
 # ── Input/navigation helpers ───────────────────────────────────────────
 proc deleteLastInputChar*() =

@@ -1,6 +1,6 @@
 ## fuzzy.nim — fuzzy matching, typo tolerance, and highlight helpers.
 
-import std/strutils
+import std/[strutils, times, tables]
 import ./state
 
 proc recentBoost*(name: string): int =
@@ -8,6 +8,21 @@ proc recentBoost*(name: string): int =
   let idx = recentApps.find(name)
   if idx >= 0: return max(0, 200 - idx * 40)
   0
+
+proc usageBoost*(name: string): int =
+  ## Small persistent score layer based on launch frequency and recency.
+  let stats = appUsage.getOrDefault(name)
+  if stats.launchCount <= 0 and stats.lastLaunched <= 0:
+    return 0
+  let frequency = min(stats.launchCount, 20) * 30
+  let ageSeconds = max(0'i64, epochTime().int64 - stats.lastLaunched)
+  let recency =
+    if ageSeconds < 3_600: 320
+    elif ageSeconds < 86_400: 220
+    elif ageSeconds < 604_800: 120
+    elif ageSeconds < 2_592_000: 40
+    else: 0
+  frequency + recency
 
 proc subseqPositions*(q, t: string): seq[int] =
   ## Case-insensitive subsequence positions of q within t (for highlight).

@@ -7,11 +7,20 @@ type
   Rgb* = object
     r*, g*, b*: uint8
 
+  ## A secondary action declared in a .desktop file.
+  DesktopEntryAction* = object
+    id*: string
+    name*: string
+    exec*: string
+    icon*: string
+    hasIcon*: bool
+
   ## A single launchable application parsed from a `.desktop` file.
   DesktopApp* = object
     name*, exec*: string
     icon*: string
     hasIcon*: bool
+    desktopActions*: seq[DesktopEntryAction]
 
   ## Payload cached to `~/.cache/nimlaunch/apps.json`.
   CacheData* = object
@@ -20,6 +29,10 @@ type
     dirMtimes*: seq[int64]
     dirSignatures*: seq[string]
     apps*: seq[DesktopApp]
+
+  AppUsage* = object
+    launchCount*: int
+    lastLaunched*: int64
 
   ## Launcher configuration populated by initLauncherConfig.
   Config* = object
@@ -76,6 +89,8 @@ type
   ## What kind of thing the user can pick.
   ActionKind* = enum
     akApp,      # a real .desktop application
+    akAppAction,# a .desktop secondary action (e.g. New Window)
+    akDmenu,    # a generic stdin-provided entry
     akRun,      # a `:r` shell command
     akConfig,   # `:c` file under ~/.config
     akFile,     # `:s` file search (open with default app)
@@ -132,6 +147,7 @@ var
   viewOffset*: int                  ## first visible item row
   shouldExit*: bool
   recentApps*: seq[string]          ## most-recent-first app names
+  appUsage*: Table[string, AppUsage]
   themeList*: seq[Theme]
   matchSpans*: seq[seq[(int, int)]] ## per row: (start,len) spans to highlight
   shortcuts*: seq[Shortcut]
@@ -142,6 +158,10 @@ var
   themePreviewActive*: bool = false ## true while :t list is temporarily previewing themes
   themePreviewBaseTheme*: string
   themePreviewCurrent*: string
+  dmenuMode*: bool = false
+  dmenuItems*: seq[string] = @[]
+  dmenuAccepted*: bool = false
+  dmenuOutput*: string
 
 # ── Constants ───────────────────────────────────────────────────────────
 const

@@ -1,5 +1,21 @@
+import std/[os, strutils, syncio]
 import sdl3
 import ./[state, app_core, gui, utils, settings, search, input, apps_cache, theme_session]
+
+proc configureStartupMode() =
+  for i in 1 .. paramCount():
+    let arg = paramStr(i)
+    if arg == "--dmenu":
+      dmenuMode = true
+
+proc loadDmenuInput() =
+  let raw = stdin.readAll()
+  dmenuItems.setLen(0)
+  for line in raw.splitLines():
+    var item = line
+    if item.len > 0 and item[^1] == '\r':
+      item.setLen(item.len - 1)
+    dmenuItems.add item
 
 proc processSearchDebounce(): bool =
   ## Debounce wake-up: if we're in s: search, rebuild after idle.
@@ -16,12 +32,18 @@ proc processSearchDebounce(): bool =
   false
 
 proc main*() =
-  if not ensureSingleInstance():
+  configureStartupMode()
+
+  if not dmenuMode and not ensureSingleInstance():
     echo "NimLaunch is already running."
     quit 0
   initLauncherConfig()
-  loadApplications()
-  loadRecent()
+  if dmenuMode:
+    loadDmenuInput()
+  else:
+    loadApplications()
+    loadRecent()
+    loadUsage()
   buildActions()
 
   resetVimState()
@@ -73,6 +95,11 @@ proc main*() =
     endThemePreviewSession(false)
 
   gui.shutdownGui()
+  if dmenuMode:
+    if dmenuAccepted:
+      stdout.write(dmenuOutput & "\n")
+      quit 0
+    quit 1
 
 when isMainModule:
   main()

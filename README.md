@@ -111,6 +111,27 @@ still rasterizes glyphs in software.
 - Theme changes do not persist: verify `~/.config/nimlaunch/nimlaunch.toml`
   is writable.
 
+## Dmenu Mode
+Use `--dmenu` to turn NimLaunch into a generic selector for stdin-provided items.
+This is useful for scripts, clipboard history, project pickers, audio output
+menus, and other non-application workflows.
+
+Example:
+
+```bash
+printf "one\ntwo\nthree\n" | ./nimlaunch --dmenu
+```
+
+Example wrapper scripts are included in:
+- `examples/dmenu/project-picker.sh`
+- `examples/dmenu/cliphist-picker.sh`
+- `examples/dmenu/power-menu.sh`
+- `examples/dmenu/audio-sink-picker.sh`
+- `examples/dmenu/git-branch-picker.sh`
+
+See [examples/dmenu/README.md](examples/dmenu/README.md) for details and
+shortcut snippets.
+
 ## Quick Reference
 Core controls:
 
