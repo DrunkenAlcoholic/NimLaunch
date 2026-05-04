@@ -17,7 +17,7 @@ proc endThemePreviewSession*(persist: bool) =
   else:
     if themePreviewBaseTheme.len > 0 and themePreviewCurrent.len > 0 and
        themePreviewCurrent != themePreviewBaseTheme:
-      applyThemeAndColors(config, themePreviewBaseTheme)
+      applyThemeAndColors(config, themePreviewBaseTheme, doRedraw = false)
       themePreviewCurrent = themePreviewBaseTheme
   themePreviewActive = false
 
@@ -37,5 +37,5 @@ proc updateThemePreview*(isThemeCmd: bool; actions: seq[Action];
   let name = act.exec
   if themePreviewCurrent == name:
     return
-  applyThemeAndColors(config, name)
+  applyThemeAndColors(config, name, doRedraw = false)
   themePreviewCurrent = name

@@ -1,4 +1,4 @@
-## state.nim — SDL2 port of core data definitions & runtime state
+## state.nim — core data definitions and runtime state
 ## Derived from NimLaunch X11 version, adapted to remove X11 types.
 
 import std/tables

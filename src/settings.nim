@@ -1,4 +1,4 @@
-## settings.nim — config/theme loading for NimLaunch SDL2.
+## settings.nim — config and theme loading for NimLaunch.
 
 import std/[os, strutils, math, options, tables]
 import parsetoml as toml
@@ -70,13 +70,15 @@ proc updateParsedColors*(cfg: var Config) =
   cfg.borderColor = get(border)
   cfg.matchFgColor = get(match)
 
-proc applyThemeAndColors*(cfg: var Config; name: string; doNotify = true) =
+proc applyThemeAndColors*(cfg: var Config; name: string; doNotify = true;
+    doRedraw = true) =
   ## Apply theme, resolve colors, push to GUI, and optionally redraw.
   applyTheme(cfg, name)
   updateParsedColors(cfg)
   gui.updateGuiColors()
   if doNotify:
     gui.notifyThemeChanged(name)
+  if doRedraw:
     gui.redrawWindow()
 
 proc saveLastTheme*(cfgPath: string) =

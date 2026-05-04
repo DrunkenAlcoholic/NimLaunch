@@ -1,4 +1,4 @@
-## parser.nim — helpers for reading `.desktop` files (SDL2 port)
+## parser.nim — helpers for reading `.desktop` files
 ## Mostly identical to NimLaunch, minus X11 dependencies.
 
 import std/[os, strutils, streams, tables, options]

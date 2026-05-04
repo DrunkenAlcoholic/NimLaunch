@@ -1,41 +1,55 @@
-## gui.nim — SDL2/TTF renderer for NimLaunch2
+## gui.nim — SDL3/TTF renderer for NimLaunch2
 ## Provides a thin API mirroring the original GUI (updateGuiColors, redrawWindow, etc.).
 
-import std/[os, strutils, times, tables, streams, osproc, algorithm]
-import sdl2
-import sdl2/ttf
-import sdl2/image
-import ./[state, paths]
+import std/[os, strutils, times, tables, streams, osproc, algorithm, math]
+import sdl3
+import sdl3_ttf
+import ./[state, paths, sdl3_image]
 
-when not declared(setWindowOpacity):
-  proc setWindowOpacity(window: WindowPtr; opacity: cfloat): cint {.cdecl,
-      importc: "SDL_SetWindowOpacity", dynlib: LibName.}
+const
+  TTF_STYLE_BOLD = 0x01'u32
 
-when not declared(SDL_WINDOW_SKIP_TASKBAR):
-  const SDL_WINDOW_SKIP_TASKBAR* = 0x00010000'u32
-
-when not declared(SDL_WINDOW_UTILITY):
-  const SDL_WINDOW_UTILITY* = 0x00020000'u32
-
-when not declared(setWindowAlwaysOnTop):
-  proc setWindowAlwaysOnTop(window: WindowPtr; on: cint): cint {.cdecl,
-      importc: "SDL_SetWindowAlwaysOnTop", dynlib: LibName.}
-
-when not declared(raiseWindow):
-  proc raiseWindow(window: WindowPtr) {.cdecl, importc: "SDL_RaiseWindow",
-      dynlib: LibName.}
+when not declared(setFontStyle):
+  proc setFontStyle(font: Font; style: uint32) {.cdecl,
+      importc: "TTF_SetFontStyle", dynlib: TtfLibName.}
 
 type
   IconTexture = ref object
-    tex: TexturePtr
+    tex: Texture
     w, h: int
 
+  UiMetrics = object
+    scale: float32
+    displayID: DisplayID
+    displayScale: float32
+    pixelDensity: float32
+    contentScale: float32
+    logicalWinW, logicalWinH: int
+    drawW, drawH: int
+    lineHeightPx: int
+    borderWidthPx: int
+    outerMarginPx: int
+    rowGapPx: int
+    rowBgOffsetPx: int
+    rowTextInsetPx: int
+    iconInsetPx: int
+    iconTextGapPx: int
+    iconSlotPx: int
+    overlayMarginPx: int
+    commandBarExtraHeightPx: int
+    commandBarBottomGapPx: int
+    overlayStackGapPx: int
+
   BackendState = ref object
-    window: WindowPtr
-    renderer: RendererPtr
-    font: FontPtr
-    fontBold: FontPtr
-    fontOverlay: FontPtr
+    window: Window
+    renderer: Renderer
+    font: Font
+    fontBold: Font
+    fontOverlay: Font
+    fontPath: string
+    baseFontSize: int
+    metrics: UiMetrics
+    lastDisplayID: DisplayID
     iconCache: Table[string, IconTexture]
     iconPathCache: Table[string, string]
     windowShown: bool
@@ -62,6 +76,21 @@ const
   SvgCacheVersion = "2"
   FallbackIconThemes = ["papirus", "papirus-dark", "adwaita", "adwaita-dark",
                         "breeze", "breeze-dark", "hicolor"]
+  BaseOuterMargin = 10
+  BasePromptInset = 12
+  BaseRowGap = 6
+  BaseRowBgOffset = 2
+  BaseRowTextInset = 2
+  BaseIconInset = 4
+  BaseIconTextGap = 8
+  BaseOverlayMargin = 8
+  BaseCommandBarExtraHeight = 6
+  BaseCommandBarBottomGap = 4
+  BaseOverlayStackGap = 4
+  BaseClockRightMargin = 10
+  BaseIconMinSize = 16
+  BaseIconMaxSize = 32
+  BaseIconSizeInset = 2
 
 var
   lastThemeSwitchMs*: int64 = 0
@@ -82,6 +111,26 @@ proc rgbToColor(c: Rgb; a: uint8 = 255'u8): Color =
   result.b = c.b
   result.a = a
 
+proc roundScaled(base: int; scale: float32; minValue = 0): int =
+  result = int(round(base.float * scale.float))
+  if result < minValue:
+    result = minValue
+
+proc logicalWindowHeight(): int =
+  40 + config.maxVisibleItems * config.lineHeight
+
+proc currentVideoDriverName(): string =
+  let raw = getCurrentVideoDriver()
+  if raw == nil:
+    return ""
+  $raw
+
+proc isX11Backend(): bool =
+  cmpIgnoreCase(currentVideoDriverName(), "x11") == 0
+
+proc ownsWindowID*(windowID: WindowID): bool =
+  not st.isNil and not st.window.isNil and windowID == getWindowID(st.window)
+
 proc deriveFontSizeFromConfig(): int =
   ## Parse config.fontName looking for ":size=N" or "size=N".
   const key = "size="
@@ -96,12 +145,12 @@ proc deriveFontSizeFromConfig(): int =
     if n > 0: return n
   12
 
-proc loadFont(path: string; size: int; makeBold = false): FontPtr =
-  let f = openFont(path.cstring, size.cint)
+proc loadFont(path: string; size: int; makeBold = false): Font =
+  let f = openFont(path.cstring, size.cfloat)
   if f.isNil:
     quit "[ERROR] Failed to load font: " & path & " (" & $getError() & ")"
   if makeBold:
-    setFontStyle(f, TTF_STYLE_BOLD.cint)
+    setFontStyle(f, TTF_STYLE_BOLD)
   f
 
 proc resolveFontPath(name: string): string =
@@ -125,7 +174,11 @@ proc resolveFontPath(name: string): string =
   DefaultFontPath
 
 proc clampDisplayIndex(displayIndex: int): int =
-  let count = getNumVideoDisplays().int
+  var count: cint
+  let displays = getDisplays(count)
+  defer:
+    if displays != nil:
+      sdlFree(displays)
   if count <= 0:
     return 0
   if displayIndex < 0: return 0
@@ -136,13 +189,20 @@ proc computeAlignedWindowX(winWidth: int; displayIndex: int): cint =
   ## Compute window X for centerWindow using display bounds.
   let idx = clampDisplayIndex(displayIndex)
   var bounds: Rect
-  if getDisplayBounds(idx.cint, bounds) != SdlSuccess:
-    return SDL_WINDOWPOS_CENTERED
+  var count: cint
+  let displays = getDisplays(count)
+  defer:
+    if displays != nil:
+      sdlFree(displays)
+  if displays == nil or idx >= count.int:
+    return WINDOWPOS_CENTERED.cint
+  if not getDisplayBounds(displays[idx], bounds):
+    return WINDOWPOS_CENTERED.cint
 
   let displayLeft = bounds.x.int
   let displayW = bounds.w.int
   if displayW <= 0:
-    return SDL_WINDOWPOS_CENTERED
+    return WINDOWPOS_CENTERED.cint
 
   var x = displayLeft + (displayW - winWidth) div 2
   let maxX = displayLeft + displayW - winWidth
@@ -154,13 +214,20 @@ proc computeAlignedWindowY(winHeight: int; displayIndex: int): cint =
   ## Compute window Y for centerWindow + verticalAlign using display bounds.
   let idx = clampDisplayIndex(displayIndex)
   var bounds: Rect
-  if getDisplayBounds(idx.cint, bounds) != SdlSuccess:
-    return SDL_WINDOWPOS_CENTERED
+  var count: cint
+  let displays = getDisplays(count)
+  defer:
+    if displays != nil:
+      sdlFree(displays)
+  if displays == nil or idx >= count.int:
+    return WINDOWPOS_CENTERED.cint
+  if not getDisplayBounds(displays[idx], bounds):
+    return WINDOWPOS_CENTERED.cint
 
   let displayTop = bounds.y.int
   let displayH = bounds.h.int
   if displayH <= 0:
-    return SDL_WINDOWPOS_CENTERED
+    return WINDOWPOS_CENTERED.cint
 
   let align = config.verticalAlign.toLowerAscii
   var centerY: int
@@ -179,44 +246,229 @@ proc computeAlignedWindowY(winHeight: int; displayIndex: int): cint =
   y.cint
 
 proc ensureSdl() =
-  if sdl2.wasInit(INIT_VIDEO) == 0'u32:
-    if not sdl2.init(INIT_VIDEO):
+  if sdl3.wasInit(INIT_VIDEO) == InitFlags(0):
+    if not sdl3.init(INIT_VIDEO):
       quit "[ERROR] SDL init failed: " & $getError()
-  if ttfInit().int != 0:
+  if not sdl3_ttf.init():
     quit "[ERROR] TTF init failed: " & $getError()
-  discard image.init(IMG_INIT_PNG)
+
+proc configureTextInput() =
+  if st.isNil or st.window.isNil:
+    return
+  let props = createProperties()
+  defer:
+    if props != 0:
+      destroyProperties(props)
+  discard setNumberProperty(props, PROP_TEXTINPUT_TYPE_NUMBER,
+      ord(TEXTINPUT_TYPE_TEXT).int64)
+  discard setNumberProperty(props, PROP_TEXTINPUT_CAPITALIZATION_NUMBER,
+      ord(CAPITALIZE_NONE).int64)
+  discard setBooleanProperty(props, PROP_TEXTINPUT_AUTOCORRECT_BOOLEAN, false)
+  discard setBooleanProperty(props, PROP_TEXTINPUT_MULTILINE_BOOLEAN, false)
+  if not startTextInputWithProperties(st.window, props):
+    discard startTextInput(st.window)
 
 proc destroyState() =
   if st.isNil: return
-  stopTextInput()
+  discard stopTextInput(st.window)
   for _, tex in st.iconCache:
     if not tex.isNil and not tex.tex.isNil:
-      tex.tex.destroy()
+      destroyTexture(tex.tex)
   st.iconCache.clear()
   st.iconPathCache.clear()
-  if not st.font.isNil: st.font.close()
-  if not st.fontBold.isNil: st.fontBold.close()
-  if not st.fontOverlay.isNil: st.fontOverlay.close()
-  if not st.renderer.isNil: st.renderer.destroy()
-  if not st.window.isNil: st.window.destroy()
+  if not st.font.isNil: closeFont(st.font)
+  if not st.fontBold.isNil: closeFont(st.fontBold)
+  if not st.fontOverlay.isNil: closeFont(st.fontOverlay)
+  if not st.renderer.isNil: destroyRenderer(st.renderer)
+  if not st.window.isNil: destroyWindow(st.window)
   st = nil
-  ttfQuit()
-  sdl2.quit()
+  sdl3_ttf.quit()
+  sdl3.quit()
 
 proc nowMs*(): int64 =
   (epochTime() * 1_000).int64
 
+proc computeUiMetrics(window: Window; renderer: Renderer): UiMetrics =
+  var drawW, drawH: cint
+  var winW, winH: cint
+  discard getWindowSize(window, winW, winH)
+  if renderer.isNil or not getWindowSizeInPixels(window, drawW, drawH):
+    drawW = winW
+    drawH = winH
+
+  let logicalW = max(1, winW.int)
+  let logicalH = max(1, winH.int)
+  let drawWi = max(1, drawW.int)
+  let drawHi = max(1, drawH.int)
+
+  let displayID = getDisplayForWindow(window)
+  let displayScale = getWindowDisplayScale(window)
+  let pixelDensity = getWindowPixelDensity(window)
+  var contentScale = 0.0'f32
+  if displayID != 0'u32:
+    contentScale = getDisplayContentScale(displayID)
+
+  var scale = displayScale
+  if scale <= 0:
+    scale = pixelDensity
+  if scale <= 0:
+    scale = contentScale
+  if scale <= 0:
+    scale = max(drawWi.float32 / logicalW.float32, drawHi.float32 / logicalH.float32)
+  if scale < 1.0'f32:
+    scale = 1.0'f32
+
+  result.scale = scale
+  result.displayID = displayID
+  result.displayScale = displayScale
+  result.pixelDensity = pixelDensity
+  result.contentScale = contentScale
+  result.logicalWinW = logicalW
+  result.logicalWinH = logicalH
+  result.drawW = drawWi
+  result.drawH = drawHi
+  result.lineHeightPx = roundScaled(config.lineHeight, scale, minValue = 1)
+  result.borderWidthPx = roundScaled(config.borderWidth, scale)
+  result.outerMarginPx = roundScaled(BaseOuterMargin, scale)
+  result.rowGapPx = roundScaled(BaseRowGap, scale)
+  result.rowBgOffsetPx = roundScaled(BaseRowBgOffset, scale)
+  result.rowTextInsetPx = roundScaled(BaseRowTextInset, scale)
+  result.iconInsetPx = roundScaled(BaseIconInset, scale)
+  result.iconTextGapPx = roundScaled(BaseIconTextGap, scale)
+  result.overlayMarginPx = roundScaled(BaseOverlayMargin, scale)
+  result.commandBarExtraHeightPx = roundScaled(BaseCommandBarExtraHeight, scale)
+  result.commandBarBottomGapPx = roundScaled(BaseCommandBarBottomGap, scale)
+  result.overlayStackGapPx = roundScaled(BaseOverlayStackGap, scale)
+  let iconInset = roundScaled(BaseIconSizeInset, scale)
+  let iconMin = roundScaled(BaseIconMinSize, scale, minValue = 1)
+  let iconMax = roundScaled(BaseIconMaxSize, scale, minValue = 1)
+  result.iconSlotPx = max(iconMin, min(result.lineHeightPx - iconInset, iconMax))
+  if result.iconSlotPx < 1:
+    result.iconSlotPx = 1
+
+proc destroyIconTextures() =
+  if st.isNil:
+    return
+  for _, tex in st.iconCache:
+    if not tex.isNil and not tex.tex.isNil:
+      destroyTexture(tex.tex)
+  st.iconCache.clear()
+  st.iconPathCache.clear()
+
+proc rebuildFonts() =
+  if st.isNil:
+    return
+  if not st.font.isNil: closeFont(st.font)
+  if not st.fontBold.isNil: closeFont(st.fontBold)
+  if not st.fontOverlay.isNil: closeFont(st.fontOverlay)
+  let fontSize = max(6, roundScaled(st.baseFontSize, st.metrics.scale, minValue = 6))
+  let overlaySize = max(fontSize - roundScaled(2, st.metrics.scale), 6)
+  st.font = loadFont(st.fontPath, fontSize)
+  st.fontBold = loadFont(st.fontPath, fontSize, makeBold = true)
+  st.fontOverlay = loadFont(st.fontPath, overlaySize)
+
+proc updateTextInputArea*() =
+  if st.isNil or st.window.isNil:
+    return
+  let m = st.metrics
+  var rect: Rect
+  let leftInset = roundScaled(BasePromptInset, m.scale)
+  if config.vimMode and vim.active:
+    let barHeight = m.lineHeightPx + m.commandBarExtraHeightPx
+    let barTop = max(0, m.logicalWinH - barHeight - m.commandBarBottomGapPx)
+    rect.x = leftInset.cint
+    rect.y = cint(barTop)
+    rect.w = max(1, m.logicalWinW - leftInset * 2).cint
+    rect.h = max(1, barHeight).cint
+  else:
+    rect.x = leftInset.cint
+    rect.y = m.outerMarginPx.cint
+    rect.w = max(1, m.logicalWinW - leftInset * 2).cint
+    rect.h = max(1, m.lineHeightPx + m.rowGapPx).cint
+  discard setTextInputArea(st.window, rect.addr, rect.x + rect.w)
+
+proc clearTextComposition*() =
+  if st.isNil or st.window.isNil:
+    return
+  if textInputActive(st.window):
+    discard clearComposition(st.window)
+
+proc refreshMetrics*(force = false): bool =
+  if st.isNil or st.window.isNil:
+    return false
+  when WindowDebug:
+    let prev = st.metrics
+  let next = computeUiMetrics(st.window, st.renderer)
+  let fontScaleChanged = force or abs(next.scale - st.metrics.scale) > 0.01'f32
+  let displayChanged = force or next.displayID != st.metrics.displayID
+  let iconSizeChanged = force or next.iconSlotPx != st.metrics.iconSlotPx
+  let metricsChanged = force or next.logicalWinW != st.metrics.logicalWinW or
+      next.logicalWinH != st.metrics.logicalWinH or next.drawW != st.metrics.drawW or
+      next.drawH != st.metrics.drawH or next.lineHeightPx != st.metrics.lineHeightPx or
+      next.borderWidthPx != st.metrics.borderWidthPx
+  st.metrics = next
+  st.lastDisplayID = next.displayID
+  # Rebuild scale-sensitive resources only when their effective pixel size changes.
+  if fontScaleChanged:
+    rebuildFonts()
+  if iconSizeChanged:
+    destroyIconTextures()
+  updateTextInputArea()
+
+  when WindowDebug:
+    if force or displayChanged or fontScaleChanged or metricsChanged or iconSizeChanged:
+      echo "[window-debug] metrics display=", prev.displayID, "->", next.displayID,
+          " displayScale=", prev.displayScale, "->", next.displayScale,
+          " pixelDensity=", prev.pixelDensity, "->", next.pixelDensity,
+          " contentScale=", prev.contentScale, "->", next.contentScale,
+          " logical=", prev.logicalWinW, "x", prev.logicalWinH, "->",
+          next.logicalWinW, "x", next.logicalWinH,
+          " drawable=", prev.drawW, "x", prev.drawH, "->",
+          next.drawW, "x", next.drawH,
+          " uiScale=", prev.scale, "->", next.scale,
+          " line=", prev.lineHeightPx, "->", next.lineHeightPx,
+          " icon=", prev.iconSlotPx, "->", next.iconSlotPx
+
+  metricsChanged or fontScaleChanged or iconSizeChanged or displayChanged
+
+proc currentMetrics(): UiMetrics =
+  if st.isNil:
+    result.scale = 1.0
+    result.logicalWinW = config.winWidth
+    result.logicalWinH = logicalWindowHeight()
+    result.drawW = result.logicalWinW
+    result.drawH = result.logicalWinH
+    result.lineHeightPx = config.lineHeight
+    result.borderWidthPx = config.borderWidth
+    result.outerMarginPx = BaseOuterMargin
+    result.rowGapPx = BaseRowGap
+    result.rowBgOffsetPx = BaseRowBgOffset
+    result.rowTextInsetPx = BaseRowTextInset
+    result.iconInsetPx = BaseIconInset
+    result.iconTextGapPx = BaseIconTextGap
+    result.iconSlotPx = max(BaseIconMinSize, min(config.lineHeight - BaseIconSizeInset,
+        BaseIconMaxSize))
+    result.overlayMarginPx = BaseOverlayMargin
+    result.commandBarExtraHeightPx = BaseCommandBarExtraHeight
+    result.commandBarBottomGapPx = BaseCommandBarBottomGap
+    result.overlayStackGapPx = BaseOverlayStackGap
+  else:
+    result = st.metrics
+
+proc layoutMetrics*(): tuple[logicalW, logicalH, drawW, drawH, lineH, iconSlot,
+    borderW: int; scale, displayScale, pixelDensity, contentScale: float32;
+    displayID: DisplayID] =
+  let m = currentMetrics()
+  (m.logicalWinW, m.logicalWinH, m.drawW, m.drawH, m.lineHeightPx,
+   m.iconSlotPx, m.borderWidthPx, m.scale, m.displayScale, m.pixelDensity,
+   m.contentScale, m.displayID)
+
 proc windowMetrics*(): tuple[winW, winH, drawW, drawH: int] =
   ## Return logical window size + renderer drawable size (pixels).
-  if st.isNil or st.window.isNil:
+  let m = currentMetrics()
+  if m.logicalWinW <= 0 or m.logicalWinH <= 0:
     return (0, 0, 0, 0)
-  let win = getSize(st.window)
-  var drawW, drawH: cint
-  if st.renderer.isNil or getRendererOutputSize(st.renderer, addr drawW,
-      addr drawH) != 0:
-    drawW = win.x
-    drawH = win.y
-  (win.x.int, win.y.int, drawW.int, drawH.int)
+  (m.logicalWinW, m.logicalWinH, m.drawW, m.drawH)
 
 proc notifyThemeChanged*(name: string) =
   currentThemeName = name
@@ -232,49 +484,64 @@ proc notifyStatus*(text: string; durationMs = 800) =
 proc initGui*() =
   ensureSdl()
 
-  let size = deriveFontSizeFromConfig()
   let fontPath = resolveFontPath(config.fontName)
 
-  ## Request a dock/utility window type so most WMs hide us from the taskbar.
-  discard setHint("SDL_VIDEO_X11_NET_WM_WINDOW_TYPE", "_NET_WM_WINDOW_TYPE_DOCK,_NET_WM_WINDOW_TYPE_UTILITY")
+  ## Keep the X11-specific taskbar hint scoped to X11 so Wayland compositors
+  ## only see the SDL3 window-role properties below.
+  if isX11Backend():
+    discard setHint("SDL_VIDEO_X11_NET_WM_WINDOW_TYPE",
+        "_NET_WM_WINDOW_TYPE_DOCK,_NET_WM_WINDOW_TYPE_UTILITY")
+
+  let props = createProperties()
+  defer:
+    if props != 0:
+      destroyProperties(props)
+  discard setStringProperty(props, PROP_WINDOW_CREATE_TITLE_STRING, "NimLaunch SDL3")
+  discard setNumberProperty(props, PROP_WINDOW_CREATE_X_NUMBER,
+      if config.centerWindow: computeAlignedWindowX(config.winWidth, config.displayIndex).int64
+      else: config.positionX.int64)
+  discard setNumberProperty(props, PROP_WINDOW_CREATE_Y_NUMBER,
+      if config.centerWindow: computeAlignedWindowY(logicalWindowHeight(),
+          config.displayIndex).int64 else: config.positionY.int64)
+  discard setNumberProperty(props, PROP_WINDOW_CREATE_WIDTH_NUMBER, config.winWidth.int64)
+  discard setNumberProperty(props, PROP_WINDOW_CREATE_HEIGHT_NUMBER, logicalWindowHeight().int64)
+  discard setBooleanProperty(props, PROP_WINDOW_CREATE_HIDDEN_BOOLEAN, true)
+  discard setBooleanProperty(props, PROP_WINDOW_CREATE_BORDERLESS_BOOLEAN, true)
+  discard setBooleanProperty(props, PROP_WINDOW_CREATE_FOCUSABLE_BOOLEAN, true)
+  discard setBooleanProperty(props, PROP_WINDOW_CREATE_UTILITY_BOOLEAN, true)
+  discard setBooleanProperty(props, PROP_WINDOW_CREATE_HIGH_PIXEL_DENSITY_BOOLEAN, true)
 
   st = BackendState(
-    window: createWindow(
-      "NimLaunch2 SDL2".cstring,
-      if config.centerWindow: computeAlignedWindowX(config.winWidth,
-          config.displayIndex) else: cint(config.positionX),
-      if config.centerWindow: computeAlignedWindowY(config.winMaxHeight,
-          config.displayIndex) else: cint(config.positionY),
-      cint(config.winWidth),
-      cint(config.winMaxHeight),
-      SDL_WINDOW_HIDDEN or SDL_WINDOW_BORDERLESS or SDL_WINDOW_SKIP_TASKBAR or SDL_WINDOW_UTILITY
-    )
+    fontPath: fontPath,
+    baseFontSize: deriveFontSizeFromConfig(),
+    window: createWindowWithProperties(props)
   )
   if st.window.isNil:
     quit "[ERROR] createWindow: " & $getError()
 
-  discard setHint(HINT_RENDER_SCALE_QUALITY, "0") # nearest for crisper icons
+  discard setHint("SDL_RENDER_SCALE_QUALITY", "0") # nearest for crisper icons
 
-  st.renderer = createRenderer(
-    st.window,
-    -1,
-    Renderer_Accelerated or Renderer_PresentVsync
-  )
+  let rendererProps = createProperties()
+  defer:
+    if rendererProps != 0:
+      destroyProperties(rendererProps)
+  discard setPointerProperty(rendererProps, PROP_RENDERER_CREATE_WINDOW_POINTER,
+      cast[pointer](st.window))
+  discard setNumberProperty(rendererProps, PROP_RENDERER_CREATE_PRESENT_VSYNC_NUMBER, 1)
+  st.renderer = createRendererWithProperties(rendererProps)
   if st.renderer.isNil:
     quit "[ERROR] createRenderer: " & $getError()
 
-  st.font = loadFont(fontPath, size)
-  st.fontBold = loadFont(fontPath, size, makeBold = true)
-  st.fontOverlay = loadFont(fontPath, max(size - 2, 6))
   st.iconCache = initTable[string, IconTexture]()
   st.iconPathCache = initTable[string, string]()
+  discard refreshMetrics(force = true)
 
   when declared(setWindowOpacity):
     let opac = if config.opacity < 0.1: 0.1 elif config.opacity >
         1.0: 1.0 else: config.opacity
     discard setWindowOpacity(st.window, opac.cfloat)
 
-  startTextInput()
+  configureTextInput()
 
 proc shutdownGui*() =
   destroyState()
@@ -290,20 +557,26 @@ proc updateGuiColors*() =
 # -------------------
 # Text rendering helpers
 # -------------------
-proc renderText(font: FontPtr; text: string; color: Color): TexturePtr =
+proc toFRect(x, y, w, h: int): FRect =
+  result.x = x.cfloat
+  result.y = y.cfloat
+  result.w = w.cfloat
+  result.h = h.cfloat
+
+proc renderText(font: Font; text: string; color: Color): Texture =
   if text.len == 0 or font.isNil: return nil
-  let surf = renderUTF8Blended(font, text.cstring, color)
+  let surf = renderTextBlended(font, text.cstring, text.len.csize_t, color)
   if surf.isNil: return nil
   let tex = createTextureFromSurface(st.renderer, surf)
   if tex.isNil:
-    freeSurface(surf)
+    destroySurface(surf)
     return nil
-  freeSurface(surf)
+  destroySurface(surf)
   tex
 
-proc measureText(font: FontPtr; text: string): (int, int) =
+proc measureText(font: Font; text: string): (int, int) =
   var w, h: cint
-  discard sizeUTF8(font, text.cstring, addr w, addr h)
+  discard getStringSize(font, text.cstring, text.len.csize_t, w, h)
   (w.int, h.int)
 
 # -------------------
@@ -693,21 +966,22 @@ proc resolveIconPath(iconName: string; requestedSize: int): string =
   result = ""
 
 proc loadPngTexture(path: string): IconTexture =
-  ## Load a PNG from disk into an SDL_Texture using SDL2_image.
+  ## Load an image from disk into an SDL_Texture using SDL3_image.
   if path.len == 0:
     return nil
 
-  let tex = image.loadTexture(st.renderer, path.cstring)
+  let tex = loadTexture(st.renderer, path.cstring)
   if tex.isNil:
     return nil
+  discard setTextureScaleMode(tex, SCALEMODE_NEAREST)
 
-  var w, h: cint
-  discard queryTexture(tex, nil, nil, addr w, addr h)
+  var wf, hf: cfloat
+  discard getTextureSize(tex, wf, hf)
 
   new(result)
   result.tex = tex
-  result.w = w
-  result.h = h
+  result.w = int(round(wf.float))
+  result.h = int(round(hf.float))
 
 proc getIconTexture(iconName: string; size: int): IconTexture =
   ## Get (or lazily load) an icon texture for a given iconName.
@@ -737,7 +1011,8 @@ proc getIconTexture(iconName: string; size: int): IconTexture =
 
 proc drawIconAt(slotX, y: int; slotSize: int; iconName: string): int =
   ## Draw icon/fallback inside slot and return next text X position.
-  result = slotX - 2
+  let m = currentMetrics()
+  result = slotX - m.rowTextInsetPx
   if iconName.len == 0:
     return
 
@@ -748,26 +1023,19 @@ proc drawIconAt(slotX, y: int; slotSize: int; iconName: string): int =
   if icon != nil and not icon.tex.isNil:
     let maxDim = slotSize
     let scale = min(maxDim.float / icon.w.float, maxDim.float / icon.h.float)
-    let dstW = cint(icon.w.float * scale)
-    let dstH = cint(icon.h.float * scale)
-    var dst: Rect
-    dst.w = dstW
-    dst.h = dstH
-    dst.x = cint(slotX + (slotSize - dstW.int) div 2)
-    dst.y = cint(y + (config.lineHeight - dstH.int) div 2)
-    discard st.renderer.copy(icon.tex, nil, addr dst)
+    let dstW = int(round(icon.w.float * scale))
+    let dstH = int(round(icon.h.float * scale))
+    let dst = toFRect(slotX + (slotSize - dstW) div 2,
+        y + (m.lineHeightPx - dstH) div 2, dstW, dstH)
+    discard renderTexture(st.renderer, icon.tex, nil, dst.addr)
   else:
-    var box: Rect
-    box.w = slotSize.cint
-    box.h = slotSize.cint
-    box.x = cint(slotX)
-    box.y = cint(y + (config.lineHeight - slotSize) div 2)
-    discard st.renderer.setDrawColor(colBg.r, colBg.g, colBg.b, 255'u8)
-    discard st.renderer.fillRect(addr box)
-    discard st.renderer.setDrawColor(colFg.r, colFg.g, colFg.b, 255'u8)
-    discard st.renderer.drawRect(addr box)
+    let box = toFRect(slotX, y + (m.lineHeightPx - slotSize) div 2, slotSize, slotSize)
+    discard setRenderDrawColor(st.renderer, colBg.r, colBg.g, colBg.b, 255'u8)
+    discard renderFillRect(st.renderer, box.addr)
+    discard setRenderDrawColor(st.renderer, colFg.r, colFg.g, colFg.b, 255'u8)
+    discard renderRect(st.renderer, box.addr)
 
-  result = slotX + (slotSize + 8)
+  result = slotX + slotSize + m.iconTextGapPx
 
 # -------------------
 # Drawing
@@ -775,23 +1043,20 @@ proc drawIconAt(slotX, y: int; slotSize: int; iconName: string): int =
 proc drawText(x, y: int; text: string; spans: seq[(int, int)] = @[];
     selected = false; iconName = "") =
   if st.isNil or st.renderer.isNil: return
+  let m = currentMetrics()
   let baseColor = if selected: colHighlightFg else: colFg
   let bg = if selected: colHighlightBg else: colBg
 
   ## Fill row background
-  var rect: Rect
-  rect.x = cint(x)
-  rect.y = cint(y - 2)
-  rect.w = cint(config.winWidth - 2 * x)
-  rect.h = cint(config.lineHeight)
-  discard st.renderer.setDrawColor(bg.r, bg.g, bg.b, 255'u8)
-  discard st.renderer.fillRect(addr rect)
+  let rect = toFRect(x, y - m.rowBgOffsetPx, m.logicalWinW - 2 * x, m.lineHeightPx)
+  discard setRenderDrawColor(st.renderer, bg.r, bg.g, bg.b, 255'u8)
+  discard renderFillRect(st.renderer, rect.addr)
 
-  var textX = x + 2
+  var textX = x + m.rowTextInsetPx
 
   ## Icon slot (adaptive size)
-  let iconSlot = max(16, min(config.lineHeight - 2, 32))
-  let slotX = x + 4
+  let iconSlot = m.iconSlotPx
+  let slotX = x + m.iconInsetPx
   if config.showIcons and iconName.len > 0:
     textX = drawIconAt(slotX, y, iconSlot, iconName)
 
@@ -799,12 +1064,11 @@ proc drawText(x, y: int; text: string; spans: seq[(int, int)] = @[];
   if text.len > 0:
     let tex = renderText(st.font, text, baseColor)
     if not tex.isNil:
-      var dst: Rect
-      dst.x = cint(textX)
-      dst.y = cint(y)
-      discard queryTexture(tex, nil, nil, addr dst.w, addr dst.h)
-      discard st.renderer.copy(tex, nil, addr dst)
-      tex.destroy()
+      var tw, th: cfloat
+      discard getTextureSize(tex, tw, th)
+      let dst = toFRect(textX, y, int(round(tw.float)), int(round(th.float)))
+      discard renderTexture(st.renderer, tex, nil, dst.addr)
+      destroyTexture(tex)
 
   ## Highlight spans
   if spans.len > 0:
@@ -816,73 +1080,74 @@ proc drawText(x, y: int; text: string; spans: seq[(int, int)] = @[];
       let (preW, _) = measureText(st.font, pre)
       let tex = renderText(st.fontBold, seg, colMatch)
       if tex.isNil: continue
-      var dst: Rect
-      dst.x = cint(textX + preW)
-      dst.y = cint(y)
-      discard queryTexture(tex, nil, nil, addr dst.w, addr dst.h)
-      discard st.renderer.copy(tex, nil, addr dst)
-      tex.destroy()
+      var tw, th: cfloat
+      discard getTextureSize(tex, tw, th)
+      let dst = toFRect(textX + preW, y, int(round(tw.float)), int(round(th.float)))
+      discard renderTexture(st.renderer, tex, nil, dst.addr)
+      destroyTexture(tex)
 
 proc drawThemeOverlay() =
   if currentThemeName.len == 0: return
+  let m = currentMetrics()
   let elapsed = nowMs() - lastThemeSwitchMs
   if elapsed > 500: return
   let alpha = 1.0 - (elapsed.float / 500.0)
   var col = colFg
   col.a = uint8(255.0 * alpha)
   let (w, _) = measureText(st.fontOverlay, currentThemeName)
-  let margin = 8
-  let tx = config.winWidth - w - margin
+  let margin = m.overlayMarginPx
+  let tx = m.logicalWinW - w - margin
   let ty = margin
   let tex = renderText(st.fontOverlay, currentThemeName, col)
   if tex.isNil: return
-  var dst: Rect
-  dst.x = tx.cint
-  dst.y = ty.cint
-  discard queryTexture(tex, nil, nil, addr dst.w, addr dst.h)
-  discard st.renderer.copy(tex, nil, addr dst)
-  tex.destroy()
+  var tw, th: cfloat
+  discard getTextureSize(tex, tw, th)
+  let dst = toFRect(tx, ty, int(round(tw.float)), int(round(th.float)))
+  discard renderTexture(st.renderer, tex, nil, dst.addr)
+  destroyTexture(tex)
 
 proc drawStatusOverlay() =
   if statusText.len == 0: return
   if nowMs() > statusUntilMs: return
+  let m = currentMetrics()
   let (w, h) = measureText(st.fontOverlay, statusText)
-  let margin = 8
-  let tx = config.winWidth - w - margin
-  let ty = margin + h + 4
+  let margin = m.overlayMarginPx
+  let tx = m.logicalWinW - w - margin
+  let ty = margin + h + m.overlayStackGapPx
   let tex = renderText(st.fontOverlay, statusText, colFg)
   if tex.isNil: return
-  var dst: Rect
-  dst.x = tx.cint
-  dst.y = ty.cint
-  discard queryTexture(tex, nil, nil, addr dst.w, addr dst.h)
-  discard st.renderer.copy(tex, nil, addr dst)
-  tex.destroy()
+  var tw, th: cfloat
+  discard getTextureSize(tex, tw, th)
+  let dst = toFRect(tx, ty, int(round(tw.float)), int(round(th.float)))
+  discard renderTexture(st.renderer, tex, nil, dst.addr)
+  destroyTexture(tex)
 
 proc drawClock(topRight = false) =
+  let m = currentMetrics()
   let nowStr = now().format("HH:mm")
   let (w, h) = measureText(st.fontOverlay, nowStr)
-  let cx = config.winWidth - w - 10
-  let cy = if topRight: h + 6 else: config.winMaxHeight - h - 8
+  let cx = m.logicalWinW - w - roundScaled(BaseClockRightMargin, m.scale)
+  let cy = if topRight: h + m.rowGapPx else: m.logicalWinH - h - m.overlayMarginPx
   let tex = renderText(st.fontOverlay, nowStr, colFg)
   if tex.isNil: return
-  var dst: Rect
-  dst.x = cx.cint
-  dst.y = cy.cint
-  discard queryTexture(tex, nil, nil, addr dst.w, addr dst.h)
-  discard st.renderer.copy(tex, nil, addr dst)
-  tex.destroy()
+  var tw, th: cfloat
+  discard getTextureSize(tex, tw, th)
+  let dst = toFRect(cx, cy, int(round(tw.float)), int(round(th.float)))
+  discard renderTexture(st.renderer, tex, nil, dst.addr)
+  destroyTexture(tex)
 
 proc drawPromptAndInput(y: var int) =
+  let m = currentMetrics()
   # Prompt + input line (hidden in Vim mode to mirror original)
   if not config.vimMode:
     let promptLine = config.prompt & inputText & config.cursor
-    drawText(12, y, promptLine)
-    y += config.lineHeight + 6
+    drawText(roundScaled(BasePromptInset, m.scale), y, promptLine)
+    y += m.lineHeightPx + m.rowGapPx
   else:
-    y += 2
+    y += m.rowBgOffsetPx
 
 proc drawVisibleRows(startY: int): int =
+  let m = currentMetrics()
   var y = startY
   let total = filteredApps.len
   let maxRows = config.maxVisibleItems
@@ -891,8 +1156,9 @@ proc drawVisibleRows(startY: int): int =
   for idx in start ..< finish:
     let row = filteredApps[idx]
     let selected = (idx == selectedIndex)
-    drawText(12, y, row.text, matchSpans[idx], selected, row.iconName)
-    y += config.lineHeight
+    drawText(roundScaled(BasePromptInset, m.scale), y, row.text,
+        matchSpans[idx], selected, row.iconName)
+    y += m.lineHeightPx
   y
 
 proc drawOverlays() =
@@ -908,86 +1174,94 @@ proc drawOverlays() =
 proc drawCommandBar() =
   if not (config.vimMode and vim.active):
     return
-  let barHeight = config.lineHeight + 6
-  var barTop = config.winMaxHeight - barHeight - 4
+  let m = currentMetrics()
+  let barHeight = m.lineHeightPx + m.commandBarExtraHeightPx
+  var barTop = m.logicalWinH - barHeight - m.commandBarBottomGapPx
   if barTop < 0: barTop = 0
-  var barRect: Rect
-  barRect.x = 0
-  barRect.y = barTop.cint
-  barRect.w = config.winWidth.cint
-  barRect.h = barHeight.cint
-  discard st.renderer.setDrawColor(colHighlightBg.r, colHighlightBg.g,
+  let barRect = toFRect(0, barTop, m.logicalWinW, barHeight)
+  discard setRenderDrawColor(st.renderer, colHighlightBg.r, colHighlightBg.g,
       colHighlightBg.b, 255'u8)
-  discard st.renderer.fillRect(addr barRect)
-  var textX = 12
+  discard renderFillRect(st.renderer, barRect.addr)
+  var textX = roundScaled(BasePromptInset, m.scale)
   if vim.prefix.len > 0:
     let prefixTex = renderText(st.font, vim.prefix, colHighlightFg)
     if not prefixTex.isNil:
-      var pDst: Rect
-      pDst.x = textX.cint
-      discard queryTexture(prefixTex, nil, nil, addr pDst.w, addr pDst.h)
-      pDst.y = cint(barTop + (barHeight - pDst.h.int) div 2)
-      textX = pDst.x + pDst.w + 4
-      discard st.renderer.copy(prefixTex, nil, addr pDst)
-      prefixTex.destroy()
+      var tw, th: cfloat
+      discard getTextureSize(prefixTex, tw, th)
+      let pw = int(round(tw.float))
+      let ph = int(round(th.float))
+      let pDst = toFRect(textX, barTop + (barHeight - ph) div 2, pw, ph)
+      textX = textX + pw + m.overlayStackGapPx
+      discard renderTexture(st.renderer, prefixTex, nil, pDst.addr)
+      destroyTexture(prefixTex)
   let barText = vim.buffer
   if barText.len > 0:
     let tex = renderText(st.font, barText, colHighlightFg)
     if not tex.isNil:
-      var dst: Rect
-      dst.x = textX.cint
-      discard queryTexture(tex, nil, nil, addr dst.w, addr dst.h)
-      dst.y = cint(barTop + (barHeight - dst.h.int) div 2)
-      discard st.renderer.copy(tex, nil, addr dst)
-      tex.destroy()
+      var tw, th: cfloat
+      discard getTextureSize(tex, tw, th)
+      let thI = int(round(th.float))
+      let dst = toFRect(textX, barTop + (barHeight - thI) div 2,
+          int(round(tw.float)), thI)
+      discard renderTexture(st.renderer, tex, nil, dst.addr)
+      destroyTexture(tex)
 
 proc drawBorder() =
-  let maxUsableBorder = max(0, (min(config.winWidth, config.winMaxHeight) - 1) div 2)
-  let borderWidth = min(config.borderWidth, maxUsableBorder)
+  let m = currentMetrics()
+  let maxUsableBorder = max(0, (min(m.logicalWinW, m.logicalWinH) - 1) div 2)
+  let borderWidth = min(m.borderWidthPx, maxUsableBorder)
   if borderWidth <= 0:
     return
-  discard st.renderer.setDrawColor(colBorder.r, colBorder.g, colBorder.b, 255'u8)
+  discard setRenderDrawColor(st.renderer, colBorder.r, colBorder.g, colBorder.b, 255'u8)
   for i in 0 ..< borderWidth:
-    let rectW = config.winWidth - 1 - i * 2
-    let rectH = config.winMaxHeight - 1 - i * 2
+    let rectW = m.logicalWinW - 1 - i * 2
+    let rectH = m.logicalWinH - 1 - i * 2
     if rectW <= 0 or rectH <= 0:
       break
-    var rect: Rect
-    rect.x = cint(i)
-    rect.y = cint(i)
-    rect.w = rectW.cint
-    rect.h = rectH.cint
-    discard st.renderer.drawRect(addr rect)
+    let rect = toFRect(i, i, rectW, rectH)
+    discard renderRect(st.renderer, rect.addr)
 
 proc presentFrame() =
   if not st.windowShown:
-    showWindow(st.window)
+    discard showWindow(st.window)
+    discard syncWindow(st.window)
     st.windowShown = true
   if not st.windowRaised:
     ## Hint most WMs to focus/raise us even when marked as utility/skip-taskbar.
-    raiseWindow(st.window)
+    discard raiseWindow(st.window)
     when declared(setWindowAlwaysOnTop):
-      discard setWindowAlwaysOnTop(st.window, 1)
-      discard setWindowAlwaysOnTop(st.window, 0)
+      if isX11Backend():
+        discard setWindowAlwaysOnTop(st.window, true)
+        discard setWindowAlwaysOnTop(st.window, false)
+    discard syncWindow(st.window)
     st.windowRaised = true
-  st.renderer.present()
+  discard renderPresent(st.renderer)
 
 proc redrawWindow*() =
   if st.isNil: return
 
   when WindowDebug:
-    let m = windowMetrics()
-    echo "[window-debug] redrawWindow win=", m.winW, "x", m.winH,
-        " drawable=", m.drawW, "x", m.drawH,
-        " layout=", config.winWidth, "x", config.winMaxHeight
+    let wm = windowMetrics()
+    let lm = layoutMetrics()
+    echo "[window-debug] redrawWindow win=", wm.winW, "x", wm.winH,
+        " drawable=", wm.drawW, "x", wm.drawH,
+        " layout=", lm.logicalW, "x", lm.logicalH,
+        " display=", lm.displayID,
+        " displayScale=", lm.displayScale,
+        " pixelDensity=", lm.pixelDensity,
+        " contentScale=", lm.contentScale,
+        " line=", lm.lineH,
+        " icon=", lm.iconSlot,
+        " scale=", lm.scale
 
-  discard st.renderer.setDrawColor(colBg.r, colBg.g, colBg.b, colBg.a)
-  discard st.renderer.clear()
+  discard setRenderDrawColor(st.renderer, colBg.r, colBg.g, colBg.b, colBg.a)
+  discard renderClear(st.renderer)
 
-  var y = 10
+  var y = currentMetrics().outerMarginPx
   drawPromptAndInput(y)
   discard drawVisibleRows(y)
   drawOverlays()
   drawCommandBar()
   drawBorder()
+  updateTextInputArea()
   presentFrame()

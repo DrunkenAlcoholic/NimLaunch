@@ -1,4 +1,4 @@
-import sdl2
+import sdl3
 import ./[state, app_core, gui, utils, settings, search, input, apps_cache, theme_session]
 
 proc processSearchDebounce(): bool =
@@ -32,26 +32,32 @@ proc main*() =
   gui.redrawWindow()
 
   var suppressNextTextInput = false
-  var ev = defaultEvent
+  var ev: Event
   var focus: FocusState
   focus.startMs = gui.nowMs()
   focus.lastGainMs = focus.startMs
 
   while not shouldExit:
     while pollEvent(ev):
-      case ev.kind
-      of QuitEvent:
+      case ev.`type`
+      of EVENT_QUIT:
         shouldExit = true
-      of WindowEvent:
+      of EVENT_WINDOW_SHOWN, EVENT_WINDOW_HIDDEN, EVENT_WINDOW_EXPOSED,
+          EVENT_WINDOW_MOVED, EVENT_WINDOW_RESIZED, EVENT_WINDOW_PIXEL_SIZE_CHANGED,
+          EVENT_WINDOW_MINIMIZED, EVENT_WINDOW_FOCUS_GAINED, EVENT_WINDOW_FOCUS_LOST,
+          EVENT_WINDOW_DISPLAY_CHANGED, EVENT_WINDOW_DISPLAY_SCALE_CHANGED:
         if handleWindowEvent(ev, focus):
           gui.redrawWindow()
-      of KeyDown:
+      of EVENT_KEY_DOWN:
         if handleKeyDown(ev, focus, suppressNextTextInput):
           gui.redrawWindow()
-
-      of TextInput:
+      of EVENT_TEXT_INPUT:
         if handleTextInput(ev, focus, suppressNextTextInput):
           gui.redrawWindow()
+      of EVENT_TEXT_EDITING:
+        discard handleTextEditing(ev)
+      of EVENT_TEXT_EDITING_CANDIDATES:
+        discard handleTextEditingCandidates(ev)
       else:
         discard
 

@@ -1,7 +1,7 @@
-# NimLaunch (SDL2)
+# NimLaunch (SDL3)
 
 NimLaunch is a keyboard-first launcher with fuzzy app search, themes, shortcuts,
-power actions, and optional Vim mode. It uses SDL2 for native Wayland/X11
+power actions, and optional Vim mode. It uses SDL3 for native Wayland/X11
 support (no Xlib/Xft) with GPU-backed compositing.
 
 ![NimLaunch screenshot](screenshots/NimLaunch-SDL2.gif)
@@ -12,7 +12,7 @@ support (no Xlib/Xft) with GPU-backed compositing.
 - Vim mode (optional): `j/k` navigation, `/ : !` command bar, `gg/G`, `:q`, etc.
 - Themes with live preview, status/toast messages, and clock overlay.
 - Icons from `.desktop` files (PNG/SVG) with fallback alias mapping; can be disabled.
-- Window opacity setting (0.1–1.0) via SDL2 when supported.
+- Window opacity setting (0.1–1.0) via SDL3 when supported.
 
 ## Install
 Grab a compiled binary from the releases:
@@ -20,28 +20,37 @@ https://github.com/Vyrnexis/NimLaunch/releases
 
 ## Build
 > [!NOTE]
-> Deps: `nim >= 2.0`, `sdl2`, `sdl2_ttf`, `sdl2_image`, `librsvg`, plus a font
+> Deps: `nim >= 2.0`, `sdl3`, `sdl3-ttf`, `sdl3-image`, `librsvg`, plus a font
 > (default `ttf-dejavu`).
+>
+> Nim package note: this project currently pins the Nim SDL3 wrapper to
+> `sdl3 == 1.0` because the code imports `sdl3_ttf`, which is not exposed by
+> newer incompatible `sdl3` package variants.
 >
 > Optional but recommended for faster `:s` file search: `fd` and/or `locate`.
 
 ### Archlinux
 ```bash
-sudo pacman -S sdl2 sdl2_ttf sdl2_image librsvg ttf-dejavu --needed
+sudo pacman -S sdl3 sdl3-ttf sdl3-image librsvg ttf-dejavu --needed
 ```
 
 ### Ubuntu
 ```bash
-sudo apt install libsdl2-dev libsdl2-ttf-dev libsdl2-image-dev librsvg2-bin fonts-dejavu-core
+sudo apt install libsdl3-dev libsdl3-ttf-dev libsdl3-image-dev librsvg2-bin fonts-dejavu-core
 ```
 
 ### OpenSUSE
 ```bash
 # Tumbleweed / Slowroll package names:
-sudo zypper install SDL2-devel SDL2_ttf-devel SDL2_image-devel librsvg-tools dejavu-fonts
+sudo zypper install SDL3-devel SDL3_ttf-devel SDL3_image-devel librsvg-tools dejavu-fonts
 ```
-If you are on Leap and a name differs, run `zypper search sdl2` and `zypper search rsvg`
+If you are on Leap and a name differs, run `zypper search sdl3` and `zypper search rsvg`
 to find the matching package variant.
+
+### Solus
+```bash
+sudo eopkg it sdl3-devel sdl3-ttf-devel sdl3-image
+```
 
 ### Build from source
 ```bash
@@ -51,6 +60,7 @@ cd NimLaunch
 
 ```bash
 nimble -y nimDebug    # debug build -> ./bin/nimlaunch
+nimble build          # package/default debug build -> ./nimlaunch
 nimble -y nimRelease  # release build for current CPU (fastest on this machine) -> ./bin/nimlaunch
 nimble -y nimReleasePortable  # portable + smaller release build (generic x86_64 baseline) -> ./bin/nimlaunch
 ```
@@ -63,13 +73,15 @@ nimble -y zigRelease  # release build for current CPU via Zig/clang -> ./bin/nim
 nimble -y zigReleasePortable  # portable + smaller Zig/clang release build (generic x86_64 baseline) -> ./bin/nimlaunch
 ```
 
-Or compile directly with Nim:
+Use `nimble c` if you need custom compiler flags while keeping Nimble-managed
+dependency paths:
 
 ```bash
-nim c -d:release --opt:speed -o:./bin/nimlaunch src/main.nim
+nimble c -d:release --opt:speed -o:./bin/nimlaunch src/nimlaunch.nim
 ```
 
 ```bash
+./nimlaunch          # from `nimble build`
 ./bin/nimlaunch      # from task builds above
 ```
 
@@ -77,13 +89,16 @@ Place the binary (`nimlaunch`) somewhere on your `PATH` (e.g., `~/.local/bin`) a
 bind a hotkey to launch it. The TOML config is auto-generated on first run.
 
 ## Wayland/X11
-Runs natively on both via SDL2 (no XWayland required on Wayland). Borderless
+Runs natively on both via SDL3 (no XWayland required on Wayland). Borderless
 window like the original. GPU compositing handles fills/icons/text blits; SDL_ttf
 still rasterizes glyphs in software.
 
 ## Troubleshooting
 - Build fails with `cannot open .../src/nimlaunch.nim`: build from project root,
-  or run `nimble -y nimDebug` / `nimble -y nimRelease` tasks.
+  and use `nimble build`, `nimble c ...`, or the provided Nimble tasks.
+- Build fails with `cannot open file: sdl3_ttf`: your Nimble environment is
+  resolving the wrong `sdl3` package. This project expects the pinned
+  `sdl3 == 1.0` wrapper that includes `sdl3_ttf`.
 - `:s` search feels slow: install `fd` and/or `locate` so search avoids the
   slower `$HOME` fallback walk.
 - Icons are missing for SVG apps: ensure `rsvg-convert` is installed
@@ -91,7 +106,7 @@ still rasterizes glyphs in software.
 - Text looks wrong or too small: set `[font].fontname` to an installed font and
   size (e.g., `"Dejavu:size=16"`).
 - Wayland/Niri black padding or delayed repaint: build with
-  `nim c -d:nimlaunchWindowDebug --nimcache:/tmp/nimlaunch_dbg_cache -o:/tmp/nimlaunch_dbg src/main.nim`
+  `nimble c -d:nimlaunchWindowDebug --nimcache:/tmp/nimlaunch_dbg_cache -o:/tmp/nimlaunch_dbg src/nimlaunch.nim`
   and run `/tmp/nimlaunch_dbg` to log window events + redraw timing.
 - Theme changes do not persist: verify `~/.config/nimlaunch/nimlaunch.toml`
   is writable.

@@ -1,4 +1,4 @@
-## app_core.nim — port of NimLaunch logic (search, actions) for SDL2 UI.
+## app_core.nim — NimLaunch application logic for search, actions, and launch flow.
 
 import std/[os, strutils, tables, sets, uri,
             algorithm, heapqueue, exitprocs]
@@ -600,7 +600,7 @@ proc performAction*(a: Action) =
       exitAfter = false
   of akTheme:
     ## Apply and persist, but DO NOT reset selection or exit.
-    applyThemeAndColors(config, a.exec, doNotify = false)
+    applyThemeAndColors(config, a.exec, doNotify = false, doRedraw = false)
     saveLastTheme(configDir() / "nimlaunch.toml")
     endThemePreviewSession(true)
     clearInput()
