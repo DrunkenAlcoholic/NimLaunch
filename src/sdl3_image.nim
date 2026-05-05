@@ -11,3 +11,24 @@ else:
 
 proc loadTexture*(renderer: Renderer; file: cstring): Texture {.
     importc: "IMG_LoadTexture", cdecl, dynlib: ImgLibName.}
+
+proc loadSizedSvg*(src: IOStream; width, height: cint): ptr Surface {.
+    importc: "IMG_LoadSizedSVG_IO", cdecl, dynlib: ImgLibName.}
+
+proc loadSizedSvgTexture*(renderer: Renderer; file: string; width, height: int): Texture =
+  if file.len == 0 or renderer.isNil or width <= 0 or height <= 0:
+    return nil
+
+  let io = ioFromFile(file.cstring, "rb")
+  if io.isNil:
+    return nil
+  defer:
+    discard closeIO(io)
+
+  let surface = loadSizedSvg(io, width.cint, height.cint)
+  if surface.isNil:
+    return nil
+  defer:
+    destroySurface(surface)
+
+  createTextureFromSurface(renderer, surface)

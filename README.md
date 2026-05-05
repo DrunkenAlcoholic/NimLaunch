@@ -20,7 +20,7 @@ https://github.com/Vyrnexis/NimLaunch/releases
 
 ## Build
 > [!NOTE]
-> Deps: `nim >= 2.0`, `sdl3`, `sdl3-ttf`, `sdl3-image`, `librsvg`, plus a font
+> Deps: `nim >= 2.0`, `sdl3`, `sdl3-ttf`, `sdl3-image`, plus a font
 > (default `ttf-dejavu`).
 >
 > Nim package note: this project currently pins the Nim SDL3 wrapper to
@@ -31,20 +31,20 @@ https://github.com/Vyrnexis/NimLaunch/releases
 
 ### Archlinux
 ```bash
-sudo pacman -S sdl3 sdl3-ttf sdl3-image librsvg ttf-dejavu --needed
+sudo pacman -S sdl3 sdl3-ttf sdl3-image ttf-dejavu --needed
 ```
 
 ### Ubuntu
 ```bash
-sudo apt install libsdl3-dev libsdl3-ttf-dev libsdl3-image-dev librsvg2-bin fonts-dejavu-core
+sudo apt install libsdl3-dev libsdl3-ttf-dev libsdl3-image-dev fonts-dejavu-core
 ```
 
 ### OpenSUSE
 ```bash
 # Tumbleweed / Slowroll package names:
-sudo zypper install SDL3-devel SDL3_ttf-devel SDL3_image-devel librsvg-tools dejavu-fonts
+sudo zypper install SDL3-devel SDL3_ttf-devel SDL3_image-devel dejavu-fonts
 ```
-If you are on Leap and a name differs, run `zypper search sdl3` and `zypper search rsvg`
+If you are on Leap and a name differs, run `zypper search sdl3`
 to find the matching package variant.
 
 ### Solus
@@ -101,8 +101,8 @@ still rasterizes glyphs in software.
   `sdl3 == 1.0` wrapper that includes `sdl3_ttf`.
 - `:s` search feels slow: install `fd` and/or `locate` so search avoids the
   slower `$HOME` fallback walk.
-- Icons are missing for SVG apps: ensure `rsvg-convert` is installed
-  (`librsvg2-bin` on Ubuntu, `librsvg-tools` on openSUSE).
+- Icons are missing for SVG apps: ensure your `SDL3_image` build includes SVG
+  support. This project now loads SVG icons through `SDL3_image` directly.
 - Text looks wrong or too small: set `[font].fontname` to an installed font and
   size (e.g., `"Dejavu:size=16"`).
 - Wayland/Niri black padding or delayed repaint: build with

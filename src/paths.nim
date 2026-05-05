@@ -32,10 +32,6 @@ proc cacheDir*(): string =
   ## Return the base cache directory for NimLaunch (~/.cache/nimlaunch).
   userCacheHome() / AppName
 
-proc iconCacheDir*(size: int): string =
-  ## Return the cache dir for rasterized icons at a given size.
-  cacheDir() / "icons" / $size
-
 proc applicationDirs*(): seq[string] =
   ## Return the list of application directories to scan.
   ## Order: user-local, user flatpak, system (XDG), system flatpak.

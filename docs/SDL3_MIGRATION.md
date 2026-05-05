@@ -161,14 +161,15 @@ across monitors.
 
 ### Icon Policy
 
-The current icon pipeline already rasterizes SVGs to PNG cache. Keep that
-pipeline, but make requested raster size scale-aware.
+The icon pipeline should remain theme-aware, but SVG handling should stay inside
+the SDL3 stack instead of relying on external rasterizer tools.
 
 Rules:
 
 - Cache key should include scale-derived size, not just logical slot size
 - Rebuild icon textures when `metrics.iconSlotPx` changes
-- Continue preferring theme-aware icon lookup and SVG raster fallback
+- Continue preferring theme-aware icon lookup
+- Load SVG icons through `SDL3_image` sized SVG loaders when available
 
 This is one of the best opportunities to improve quality during the SDL3 port.
 

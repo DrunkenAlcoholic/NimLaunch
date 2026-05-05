@@ -4,7 +4,7 @@
 import std/[os, strutils, times, tables, streams, osproc, algorithm, math]
 import sdl3
 import sdl3_ttf
-import ./[state, paths, sdl3_image]
+import ./[state, sdl3_image]
 
 const
   TTF_STYLE_BOLD = 0x01'u32
@@ -73,7 +73,6 @@ const
   IconSearchSizes = [16, 20, 22, 24, 32, 48, 64, 96, 128, 192, 256, 512]
   DefaultFontPath = "/usr/share/fonts/TTF/DejaVuSans.ttf"
   DefaultFallbackIcon = "application-x-executable"
-  SvgCacheVersion = "2"
   FallbackIconThemes = ["papirus", "papirus-dark", "adwaita", "adwaita-dark",
                         "breeze", "breeze-dark", "hicolor"]
   BaseOuterMargin = 10
@@ -580,7 +579,7 @@ proc measureText(font: Font; text: string): (int, int) =
   (w.int, h.int)
 
 # -------------------
-# Icon resolution (PNG-only)
+# Icon resolution
 # -------------------
 proc appendUniquePath(dst: var seq[string]; path: string) =
   if path.len == 0:
@@ -732,86 +731,6 @@ proc initIconSearchPaths() =
 
   iconSearchPathsReady = true
 
-proc svgCacheName(svgPath: string; size: int): string =
-  ## Build a deterministic cache file name from source path + size + mtime.
-  var mtime = "0"
-  try:
-    mtime = $toUnix(getLastModificationTime(svgPath))
-  except CatchableError:
-    discard
-  var h = 1469598103934665603'u64
-  let src = SvgCacheVersion & "|" & svgPath & "|" & $size & "|" & mtime
-  for ch in src:
-    h = (h xor uint64(ord(ch))) * 1099511628211'u64
-  let stem = splitFile(svgPath).name
-  stem & "-" & toHex(h, 16).toLowerAscii & ".png"
-
-proc rasterizeSvg(svgPath: string; size: int): string =
-  ## Convert an SVG icon to a cached PNG (resvg -> rsvg-convert -> ImageMagick).
-  let cacheDir = iconCacheDir(size)
-  try: createDir(cacheDir) except CatchableError: discard
-  let outPath = cacheDir / svgCacheName(svgPath, size)
-  if fileExists(outPath):
-    return outPath
-
-  let resvgExe = findExe("resvg")
-  if resvgExe.len > 0:
-    try:
-      let p = startProcess(
-        resvgExe,
-        args = @["--width", $size, "--height", $size, svgPath, outPath],
-        options = {poUsePath, poStdErrToStdOut}
-      )
-      defer: close(p)
-      discard p.outputStream.readAll()
-      let code = p.waitForExit()
-      if code == 0 and fileExists(outPath):
-        return outPath
-      if fileExists(outPath):
-        try: removeFile(outPath) except CatchableError: discard
-    except CatchableError:
-      discard
-
-  let rsvgExe = findExe("rsvg-convert")
-  if rsvgExe.len > 0:
-    try:
-      let p = startProcess(
-        rsvgExe,
-        args = @["-w", $size, "-h", $size, svgPath],
-        options = {poUsePath, poStdErrToStdOut}
-      )
-      defer: close(p)
-      let pngData = p.outputStream.readAll()
-      let code = p.waitForExit()
-      if code == 0 and pngData.len > 0:
-        writeFile(outPath, pngData)
-        return outPath
-    except CatchableError:
-      discard
-
-  let imExe = block:
-    let magick = findExe("magick")
-    if magick.len > 0: magick else: findExe("convert")
-  if imExe.len > 0:
-    try:
-      let p = startProcess(
-        imExe,
-        args = @[svgPath, "-background", "none", "-alpha", "set",
-                 "-resize", $size & "x" & $size, "PNG32:" & outPath],
-        options = {poUsePath, poStdErrToStdOut}
-      )
-      defer: close(p)
-      discard p.outputStream.readAll()
-      let code = p.waitForExit()
-      if code == 0 and fileExists(outPath):
-        return outPath
-      if fileExists(outPath):
-        try: removeFile(outPath) except CatchableError: discard
-    except CatchableError:
-      discard
-
-  ""
-
 proc searchIconInDir(base: string; size: int; iconName: string;
                      includeSymbolic: bool; includeAuxGroups: bool;
                      includeScalable: bool): string =
@@ -822,9 +741,6 @@ proc searchIconInDir(base: string; size: int; iconName: string;
   proc pickExisting(path: string): string =
     if not fileExists(path):
       return ""
-    let low = path.toLowerAscii
-    if low.endsWith(".svg"):
-      return rasterizeSvg(path, size)
     return path
 
   proc checkName(name: string): string =
@@ -870,7 +786,7 @@ proc searchIconInDir(base: string; size: int; iconName: string;
   ""
 
 proc resolveIconPath(iconName: string; requestedSize: int): string =
-  ## Resolve an icon name to a rasterizable file path; supports PNG directly and SVG via rsvg-convert.
+  ## Resolve an icon name to an on-disk image path usable by SDL3_image.
   if iconName.len == 0:
     return ""
 
@@ -899,14 +815,10 @@ proc resolveIconPath(iconName: string; requestedSize: int): string =
     let absLower = iconName.toLowerAscii()
     if fileExists(iconName) and (absLower.endsWith(".png") or absLower.endsWith(".svg") or
         absLower.endsWith(".xpm")):
-      if absLower.endsWith(".svg"):
-        return rasterizeSvg(iconName, requestedSize)
       return iconName
     for ext in [".png", ".svg", ".xpm"]:
       let p = iconName & ext
       if fileExists(p):
-        if ext == ".svg":
-          return rasterizeSvg(p, requestedSize)
         return p
     return ""
 
@@ -955,22 +867,25 @@ proc resolveIconPath(iconName: string; requestedSize: int): string =
       if hasExt:
         let p = pixRoot / icon
         if fileExists(p):
-          if lower.endsWith(".svg"): return rasterizeSvg(p, requestedSize)
           return p
       for ext in [".png", ".svg", ".xpm"]:
         let p = pixRoot / (icon & ext)
         if fileExists(p):
-          if ext == ".svg": return rasterizeSvg(p, requestedSize)
           return p
 
   result = ""
 
-proc loadPngTexture(path: string): IconTexture =
+proc loadIconTexture(path: string; requestedSize: int): IconTexture =
   ## Load an image from disk into an SDL_Texture using SDL3_image.
   if path.len == 0:
     return nil
 
-  let tex = loadTexture(st.renderer, path.cstring)
+  let lower = path.toLowerAscii
+  let tex =
+    if lower.endsWith(".svg"):
+      loadSizedSvgTexture(st.renderer, path, requestedSize, requestedSize)
+    else:
+      loadTexture(st.renderer, path.cstring)
   if tex.isNil:
     return nil
   discard setTextureScaleMode(tex, SCALEMODE_NEAREST)
@@ -1002,7 +917,7 @@ proc getIconTexture(iconName: string; size: int): IconTexture =
   if path.len == 0:
     return nil
 
-  let tex = loadPngTexture(path)
+  let tex = loadIconTexture(path, size)
   if tex.isNil:
     return nil
 
