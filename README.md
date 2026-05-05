@@ -1,17 +1,25 @@
 # NimLaunch (SDL3)
 
-NimLaunch is a keyboard-first launcher with fuzzy app search, themes, shortcuts,
-power actions, and optional Vim mode. It uses SDL3 for native Wayland/X11
-support (no Xlib/Xft) with GPU-backed compositing.
+NimLaunch is a keyboard-first launcher for Wayland and X11 built on SDL3. It
+covers three main workflows:
+
+- application launching from `.desktop` entries
+- configurable command/url/file shortcuts
+- generic stdin-driven selection through `--dmenu`
+
+It uses SDL3 for native Wayland/X11 support with GPU-backed compositing and
+loads PNG/SVG icons through the SDL3 stack.
 
 ![NimLaunch screenshot](screenshots/NimLaunch-SDL2.gif)
 
 ## Features
-- Fuzzy app search with typo tolerance; MRU bias for empty query.
+- Fuzzy app search with typo tolerance, recent-item bias, and persistent usage-based ranking.
+- Desktop entry actions for apps that expose secondary launch actions.
 - Prefix commands: `:t`, `:c`, `:s`, `:r`, `!`, and custom groups (default alias `:p`).
 - Vim mode (optional): `j/k` navigation, `/ : !` command bar, `gg/G`, `:q`, etc.
 - Themes with live preview, status/toast messages, and clock overlay.
-- Icons from `.desktop` files (PNG/SVG) with fallback alias mapping; can be disabled.
+- `--dmenu` mode for scripts, clipboard pickers, project pickers, audio menus, and other stdin-driven workflows.
+- Icons from `.desktop` files (PNG/SVG) with theme-aware lookup; can be disabled.
 - Window opacity setting (0.1–1.0) via SDL3 when supported.
 
 ## Install
@@ -20,14 +28,16 @@ https://github.com/Vyrnexis/NimLaunch/releases
 
 ## Build
 > [!NOTE]
-> Deps: `nim >= 2.0`, `sdl3`, `sdl3-ttf`, `sdl3-image`, plus a font
+> Runtime/build deps: `nim >= 2.0`, `sdl3`, `sdl3-ttf`, `sdl3-image`, plus a font
 > (default `ttf-dejavu`).
 >
 > Nim package note: this project currently pins the Nim SDL3 wrapper to
 > `sdl3 == 1.0` because the code imports `sdl3_ttf`, which is not exposed by
 > newer incompatible `sdl3` package variants.
 >
-> Optional but recommended for faster `:s` file search: `fd` and/or `locate`.
+> Optional helpers:
+> - `fd` and/or `locate` for faster `:s` file search
+> - `cliphist` if you want to use the clipboard dmenu example scripts
 
 ### Archlinux
 ```bash
@@ -103,6 +113,8 @@ still rasterizes glyphs in software.
   slower `$HOME` fallback walk.
 - Icons are missing for SVG apps: ensure your `SDL3_image` build includes SVG
   support. This project now loads SVG icons through `SDL3_image` directly.
+- `--dmenu` looks empty: make sure you are piping newline-separated input into
+  it, for example `printf "one\\ntwo\\n" | nimlaunch --dmenu`.
 - Text looks wrong or too small: set `[font].fontname` to an installed font and
   size (e.g., `"Dejavu:size=16"`).
 - Wayland/Niri black padding or delayed repaint: build with
@@ -112,15 +124,28 @@ still rasterizes glyphs in software.
   is writable.
 
 ## Dmenu Mode
-Use `--dmenu` to turn NimLaunch into a generic selector for stdin-provided items.
-This is useful for scripts, clipboard history, project pickers, audio output
-menus, and other non-application workflows.
+Use `--dmenu` to turn NimLaunch into a generic selector for stdin-provided
+items. In this mode NimLaunch does not scan desktop applications; it reads
+newline-separated entries from `stdin`, lets you filter them with the normal UI,
+prints the selected line to `stdout`, and exits.
+
+Behavior:
+- `Enter` prints the selected line and exits with status `0`
+- `Esc` cancels and exits with status `1`
+- empty query preserves the original input order
 
 Example:
 
 ```bash
 printf "one\ntwo\nthree\n" | ./nimlaunch --dmenu
 ```
+
+Typical uses:
+- project picker
+- clipboard history picker
+- power/session menu
+- audio sink picker
+- git branch picker
 
 Example wrapper scripts are included in:
 - `examples/dmenu/project-picker.sh`
@@ -151,7 +176,7 @@ Core controls:
 
 | Prefix | Example | Description |
 | ------ | ------- | ----------- |
-| *none* | `fire` | Regular app search; rankings favour prefixes and recent launches |
+| *none* | `fire` | Regular app search; rankings favour prefixes, recent launches, and persistent usage |
 | `:t` | `:t nord` | Browse themes; Up/Down preview, Enter to keep selection |
 | `:s` | `:s notes` | Search files (`fd` → `locate` → bounded `$HOME` walk) |
 | `:c` | `:c sway` | Match files inside `~/.config` and open with the default handler |
