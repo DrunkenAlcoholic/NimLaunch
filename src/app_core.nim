@@ -192,8 +192,6 @@ proc parseCommand*(inputText: string): (CmdKind, string, int, string) =
     of "t": return (ckTheme, rest, -1, "")
     of "r": return (ckRun, rest, -1, "")
     else:
-      if config.powerPrefix.len > 0 and norm == config.powerPrefix:
-        return (ckGroup, rest, -1, "power")
       for i, sc in shortcuts:
         if sc.prefix.len == 0:
           continue
@@ -656,18 +654,6 @@ proc performAction*(a: Action) =
         gui.notifyStatus("Failed to open: " & shortenPath(expanded, 50), 1600)
         exitAfter = false
     if exitAfter and a.stayOpen:
-      exitAfter = false
-  of akPower:
-    var success = true
-    case a.powerMode
-    of pamSpawn:
-      success = spawnShellCommand(a.exec)
-    of pamTerminal:
-      success = runCommand(a.exec)
-    if not success:
-      gui.notifyStatus("Failed: " & a.label, 1600)
-      exitAfter = false
-    elif a.stayOpen:
       exitAfter = false
   of akTheme:
     ## Apply and persist, but DO NOT reset selection or exit.

@@ -58,7 +58,6 @@ type
     fontName*: string
     themeName*: string
     terminalExe*: string     ## preferred terminal program
-    powerPrefix*: string     ## normalized power keyword (no leading ':')
     vimMode*: bool
 
     # Resolved colours (set after theme application) --------------------
@@ -82,7 +81,7 @@ type
   Shortcut* = object
     prefix*, label*, base*: string
     mode*: ShortcutMode
-    group*: string # optional group label (e.g., "power")
+    group*: string # optional group label (e.g., "sys")
     runMode*: PowerActionMode = pamTerminal
     stayOpen*: bool = false
 
@@ -96,7 +95,6 @@ type
     akFile,     # `:s` file search (open with default app)
     akShortcut, # configurable shortcut (URL/shell/file)
     akTheme,    # `:t` Theme selector
-    akPower,    # power/system management entries
     akPlaceholder
 
   ## A single selectable entry in the launcher.
@@ -217,7 +215,7 @@ enabled = true                    # Set to false to hide icons in the list
 # query_mode = "filter" (default) or "pass".
 
 [[groups]]
-name = "power"
+name = "sys"
 query_mode = "filter"
 
 # ==========================
@@ -228,7 +226,7 @@ query_mode = "filter"
 #   label   = text shown before your query in the results list
 #   base    = template containing optional {query} placeholder
 #   mode    = "url" (default), "shell", or "file"
-#   group   = optional group name (use "power" to list under :p)
+#   group   = optional group name (e.g. "sys")
 #   run_mode = "terminal" (default) or "spawn" for shell commands
 #   stay_open = true keeps NimLaunch open after running the action
 
@@ -255,17 +253,24 @@ mode   = "url"
 # ==========================
 # Use `:r` (or `!`) to execute shell commands directly without a custom shortcut.
 
-# ==========================
-# Power actions
-# ==========================
-# Configure system commands exposed under the `p` prefix (type `:p` in the UI).
-# Power entries now live in [[shortcuts]] with group = "power".
-
-[power]
-prefix = ":p"           # Any prefix you write (with/without ':') maps to one trigger
+[[shortcuts]]
+group     = "sys"
+label     = "Lock"
+base      = "loginctl lock-session"
+mode      = "shell"
+run_mode  = "spawn"
+stay_open = false
 
 [[shortcuts]]
-group     = "power"
+group     = "sys"
+label     = "Suspend"
+base      = "systemctl suspend"
+mode      = "shell"
+run_mode  = "spawn"
+stay_open = false
+
+[[shortcuts]]
+group     = "sys"
 label     = "Shutdown"
 base      = "systemctl poweroff"
 mode      = "shell"
@@ -273,7 +278,7 @@ run_mode  = "spawn"
 stay_open = false
 
 [[shortcuts]]
-group     = "power"
+group     = "sys"
 label     = "Reboot"
 base      = "systemctl reboot"
 mode      = "shell"
@@ -281,7 +286,7 @@ run_mode  = "spawn"
 stay_open = false
 
 [[shortcuts]]
-group     = "power"
+group     = "sys"
 label     = "Logout"
 base      = "loginctl terminate-user $USER"
 mode      = "shell"

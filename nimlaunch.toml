@@ -17,15 +17,15 @@ vertical_align = "one-third"      # Only used when center=true; "top", "center",
 display = 0                       # Display index when center=true (0 = primary)
 
 [font]
-fontname = "Dejavu:size=16"    # Font name & size (Xft format: "Font Family:size=N")
+fontname = "Dejavu:size=16"       # Font name & size (e.g., "Font Family:size=N")
 
 [input]
-prompt = " "                     # Prompt prefix shown before your query
-cursor = " "                     # Cursor character displayed after query text
+prompt = "> "                     # Prompt prefix shown before your query
+cursor = "_"                      # Cursor character displayed after query text
 vim_mode = false                  # true enables Vim-style modes/hjkl navigation
 
 [terminal]
-program = "kitty  -e"             # Terminal emulator for slash commands (/ ...)
+program = "gnome-terminal"        # Terminal emulator for slash commands (/ ...)
                                   # If not found, NimLaunch will fall back to a default
 
 [border]
@@ -41,7 +41,7 @@ enabled = true                    # Set to false to hide icons in the list
 # query_mode = "filter" (default) or "pass".
 
 [[groups]]
-name = "power"
+name = "sys"
 query_mode = "filter"
 
 # ==========================
@@ -52,6 +52,9 @@ query_mode = "filter"
 #   label   = text shown before your query in the results list
 #   base    = template containing optional {query} placeholder
 #   mode    = "url" (default), "shell", or "file"
+#   group   = optional group name (e.g. "sys")
+#   run_mode = "terminal" (default) or "spawn" for shell commands
+#   stay_open = true keeps NimLaunch open after running the action
 
 [[shortcuts]]
 prefix = ":g"
@@ -76,17 +79,24 @@ mode   = "url"
 # ==========================
 # Use `:r` (or `!`) to execute shell commands directly without a custom shortcut.
 
-# ==========================
-# Power actions
-# ==========================
-# Configure system commands exposed under the `p` prefix (type `:p` in the UI).
-# Power entries now live in [[shortcuts]] with group = "power".
-
-[power]
-prefix = ":p"           # Any prefix you write (with/without ':') maps to one trigger
+[[shortcuts]]
+group     = "sys"
+label     = "Lock"
+base      = "loginctl lock-session"
+mode      = "shell"
+run_mode  = "spawn"
+stay_open = false
 
 [[shortcuts]]
-group     = "power"
+group     = "sys"
+label     = "Suspend"
+base      = "systemctl suspend"
+mode      = "shell"
+run_mode  = "spawn"
+stay_open = false
+
+[[shortcuts]]
+group     = "sys"
 label     = "Shutdown"
 base      = "systemctl poweroff"
 mode      = "shell"
@@ -94,7 +104,7 @@ run_mode  = "spawn"
 stay_open = false
 
 [[shortcuts]]
-group     = "power"
+group     = "sys"
 label     = "Reboot"
 base      = "systemctl reboot"
 mode      = "shell"
@@ -102,7 +112,7 @@ run_mode  = "spawn"
 stay_open = false
 
 [[shortcuts]]
-group     = "power"
+group     = "sys"
 label     = "Logout"
 base      = "loginctl terminate-user $USER"
 mode      = "shell"
@@ -125,7 +135,7 @@ stay_open = false
 # Tip: You can quickly preview themes in-app with the `t:` command.
 
 [[themes]]
-name                = "Arstotzka"
+name                = "Arstotzka"   
 bgColorHex          = "#211f1e"
 fgColorHex          = "#edebe6"
 highlightBgColorHex = "#292725"
@@ -1149,3 +1159,4 @@ highlightBgColorHex = "#151515"
 highlightFgColorHex = "#000000"
 borderColorHex      = "#777777"
 matchFgColorHex     = "#ff6a38"
+

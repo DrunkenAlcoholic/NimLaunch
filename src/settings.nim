@@ -159,8 +159,6 @@ proc loadShortcutsSection(tbl: toml.TomlValueRef; cfgPath: string) =
         of "shell": mode = smShell
         of "file": mode = smFile
         else: discard
-        if group == "power" and mode != smShell:
-          mode = smShell
 
         var runMode = pamTerminal
         case runModeStr
@@ -218,17 +216,6 @@ proc ensureGroupDefaults() =
     if not st.groupQueryModes.hasKey(sc.group):
       st.groupQueryModes[sc.group] = gqmFilter
 
-proc loadPowerSection(tbl: toml.TomlValueRef; cfgPath: string) =
-  ## Populate the power prefix from [power].
-  if not tbl.hasKey("power"):
-    return
-  try:
-    let p = tbl["power"].getTable()
-    let rawPrefix = p.getOrDefault("prefix").getStr(st.config.powerPrefix)
-    st.config.powerPrefix = normalizePrefix(rawPrefix)
-  except CatchableError:
-    echo "NimLaunch warning: ignoring invalid [power] section in ", cfgPath
-
 proc initLauncherConfig*() =
   ## Initialize defaults, read TOML, apply last theme, compute geometry.
   st.config = Config() # zero-init
@@ -250,7 +237,6 @@ proc initLauncherConfig*() =
   st.config.terminalExe = "gnome-terminal"
   st.config.borderWidth = 2
   st.config.matchFgColorHex = "#f8c291"
-  st.config.powerPrefix = normalizePrefix("p:")
   st.config.vimMode = false
   st.config.showIcons = true
 
@@ -271,7 +257,10 @@ proc initLauncherConfig*() =
   try:
     tbl = toml.parseFile(cfgPath)
   except CatchableError as e:
-    echo "NimLaunch warning: invalid TOML in ", cfgPath, " (", e.name, "): ", e.msg
+    echo "NimLaunch config error: failed to parse ", cfgPath
+    echo "  ", e.name, ": ", e.msg
+    echo "  NimLaunch is ignoring this file and using built-in defaults for this session."
+    echo "  Fix the TOML file and restart NimLaunch to restore your saved settings."
     tbl = toml.parseString(defaultToml)
 
   ## window
@@ -372,7 +361,6 @@ proc initLauncherConfig*() =
   loadGroupsSection(tbl, cfgPath)
   loadShortcutsSection(tbl, cfgPath)
   ensureGroupDefaults()
-  loadPowerSection(tbl, cfgPath)
 
   ## last_chosen (case-insensitive match; fallback to first theme)
   var lastName = ""
