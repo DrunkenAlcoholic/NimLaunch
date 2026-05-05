@@ -1,23 +1,100 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-launcher="${NIMLAUNCH_BIN:-nimlaunch}"
+NIMLAUNCH_BIN="${NIMLAUNCH_BIN:-nimlaunch}"
+WPCTL_BIN="${WPCTL_BIN:-wpctl}"
+PWDUMP_BIN="${PWDUMP_BIN:-pw-dump}"
 
-if ! command -v wpctl >/dev/null 2>&1; then
-  printf 'audio-sink-picker: wpctl is not installed\n' >&2
-  exit 1
+if ! command -v "$NIMLAUNCH_BIN" >/dev/null 2>&1 && [[ ! -x "$NIMLAUNCH_BIN" ]]; then
+  printf 'audio-sink-picker: nimlaunch not found (set NIMLAUNCH_BIN)\n' >&2
+  exit 127
 fi
 
-selection="$({
-  wpctl status |
-    sed -n '/Sinks:/,/Sources:/p' |
-    sed '1d;$d' |
-    sed -E 's/^([[:space:]]*)(\*?)([[:space:]]*)([0-9]+)\.([[:space:]]*)(.*)$/\4\t\6/'
-} | "$launcher" --dmenu)" || exit 1
+if ! command -v "$WPCTL_BIN" >/dev/null 2>&1; then
+  printf 'audio-sink-picker: wpctl not found\n' >&2
+  exit 127
+fi
 
+if ! command -v "$PWDUMP_BIN" >/dev/null 2>&1; then
+  printf 'audio-sink-picker: pw-dump not found\n' >&2
+  exit 127
+fi
+
+default_sink_id() {
+  "$WPCTL_BIN" inspect @DEFAULT_AUDIO_SINK@ 2>/dev/null | awk '
+    /^id[[:space:]]+[0-9]+,/ {
+      gsub(",", "", $2)
+      print $2
+      exit
+    }
+  '
+}
+
+sink_rows() {
+  "$PWDUMP_BIN" --raw 2>/dev/null | perl -MJSON::PP -e '
+    local $/;
+    my $json = <STDIN>;
+    my $data = eval { JSON::PP::decode_json($json) };
+    exit 1 if !$data || ref($data) ne "ARRAY";
+    for my $obj (@$data) {
+      next if ref($obj) ne "HASH";
+      next if ($obj->{type} // "") ne "PipeWire:Interface:Node";
+      my $props = $obj->{info}{props} // {};
+      next if ($props->{"media.class"} // "") ne "Audio/Sink";
+      my $id = $obj->{id};
+      next if !defined $id;
+      my $name =
+           $props->{"node.description"}
+        // $props->{"device.description"}
+        // $props->{"node.nick"}
+        // $props->{"node.name"}
+        // "Sink $id";
+      $name =~ s/[\r\n]+/ /g;
+      print "$id\t$name\n";
+    }
+  '
+}
+
+declare -a SINK_IDS=()
+declare -a SINK_LABELS=()
+DEFAULT_ID="$(default_sink_id)"
+
+while IFS=$'\t' read -r id name; do
+  [[ -n "$id" ]] || continue
+  marker=" "
+  [[ -n "${DEFAULT_ID:-}" && "$id" == "$DEFAULT_ID" ]] && marker="*"
+  label="$marker $name"
+
+  duplicate=0
+  for existing in "${SINK_LABELS[@]:-}"; do
+    if [[ "$existing" == "$label" ]]; then
+      duplicate=1
+      break
+    fi
+  done
+  if ((duplicate)); then
+    label="$marker $name ($id)"
+  fi
+
+  SINK_IDS+=("$id")
+  SINK_LABELS+=("$label")
+done < <(sink_rows)
+
+((${#SINK_IDS[@]} > 0)) || exit 1
+
+selection="$(
+  printf '%s\n' "${SINK_LABELS[@]}" | "$NIMLAUNCH_BIN" --dmenu
+)" || exit $?
 [[ -n "$selection" ]] || exit 1
 
-sink_id="${selection%%$'\t'*}"
+sink_id=""
+for i in "${!SINK_LABELS[@]}"; do
+  if [[ "${SINK_LABELS[$i]}" == "$selection" ]]; then
+    sink_id="${SINK_IDS[$i]}"
+    break
+  fi
+done
+
 [[ -n "$sink_id" ]] || exit 1
 
-exec wpctl set-default "$sink_id"
+"$WPCTL_BIN" set-default "$sink_id"

@@ -15,10 +15,10 @@ loads PNG/SVG icons through the SDL3 stack.
 ## Features
 - Fuzzy app search with typo tolerance, recent-item bias, and persistent usage-based ranking.
 - Desktop entry actions for apps that expose secondary launch actions.
-- Prefix commands: `:t`, `:c`, `:s`, `:r`, `!`, and custom groups (default alias `:p`).
+- Prefix commands: `:t`, `:c`, `:s`, `:r`, `!`, and custom groups.
 - Vim mode (optional): `j/k` navigation, `/ : !` command bar, `gg/G`, `:q`, etc.
 - Themes with live preview, status/toast messages, and clock overlay.
-- `--dmenu` mode for scripts, clipboard pickers, project pickers, audio menus, and other stdin-driven workflows.
+- `--dmenu` mode for scripts, audio menus, and other stdin-driven workflows.
 - Icons from `.desktop` files (PNG/SVG) with theme-aware lookup; can be disabled.
 - Window opacity setting (0.1–1.0) via SDL3 when supported.
 
@@ -37,7 +37,6 @@ https://github.com/Vyrnexis/NimLaunch/releases
 >
 > Optional helpers:
 > - `fd` and/or `locate` for faster `:s` file search
-> - `cliphist` if you want to use the clipboard dmenu example scripts
 
 ### Archlinux
 ```bash
@@ -141,21 +140,39 @@ printf "one\ntwo\nthree\n" | ./nimlaunch --dmenu
 ```
 
 Typical uses:
-- project picker
-- clipboard history picker
-- power/session menu
 - audio sink picker
-- git branch picker
+- power/session menu
+- any global text-based selector driven by a wrapper script
 
-Example wrapper scripts are included in:
-- `examples/dmenu/project-picker.sh`
-- `examples/dmenu/cliphist-picker.sh`
-- `examples/dmenu/power-menu.sh`
+Included example:
 - `examples/dmenu/audio-sink-picker.sh`
-- `examples/dmenu/git-branch-picker.sh`
 
-See [examples/dmenu/README.md](examples/dmenu/README.md) for details and
-shortcut snippets.
+To expose that script inside NimLaunch itself, add a grouped shortcut like:
+
+```toml
+[[groups]]
+name = "media"
+query_mode = "filter"
+
+[[shortcuts]]
+group    = "media"
+label    = "Audio Sink"
+base     = "~/.local/bin/audio-sink-picker.sh"
+mode     = "shell"
+run_mode = "spawn"
+```
+
+Install the script somewhere on your `PATH` such as `~/.local/bin`, or use the
+repo copy directly while testing:
+
+```toml
+[[shortcuts]]
+group    = "media"
+label    = "Audio Sink"
+base     = "/absolute/path/to/NimLaunch/examples/dmenu/audio-sink-picker.sh"
+mode     = "shell"
+run_mode = "spawn"
+```
 
 ## Quick Reference
 Core controls:
@@ -182,7 +199,7 @@ Core controls:
 | `:c` | `:c sway` | Match files inside `~/.config` and open with the default handler |
 | `:r` | `:r htop` | Run a shell command inside your preferred terminal |
 | `!` | `!htop` | Shorthand for `:r` without the colon |
-| `:<group>` | `:p lock` | Run grouped shortcuts (e.g., `:p` for power) |
+| `:<group>` | `:sys lock` | Run grouped shortcuts (for example a `sys` group for session/power actions) |
 
 ## Configuration
 Config path: `~/.config/nimlaunch/nimlaunch.toml` (auto-generated on first run).
@@ -216,7 +233,7 @@ width = 2
 enabled = true                    # Set to false to hide icons in the list
 
 [[groups]]
-name = "power"
+name = "sys"
 query_mode = "filter"
 
 [[shortcuts]]
@@ -224,17 +241,6 @@ prefix = ":g"            # write "g", ":g", or "g:" — all map to :g in the UI
 label  = "Search Google: "
 base   = "https://www.google.com/search?q={query}"
 mode   = "url"            # other options: "shell", "file"
-
-[power]
-prefix = ":p"            # default alias for the power group
-
-[[shortcuts]]
-group     = "power"
-label     = "Shutdown"
-base      = "systemctl poweroff"
-mode      = "shell"
-run_mode  = "spawn"
-stay_open = false
 
 [[themes]]
 name                = "Nord"
@@ -265,10 +271,10 @@ Fields:
 - `mode = "file"`: opens file/folder (`~` expands).
 
 If `group` is set, `prefix` is optional because the group name becomes the
-prefix (e.g., `:dev`, `:sys`, `:p`).
+prefix (e.g., `:dev`, `:sys`).
 
 ## Groups (powerful shortcuts)
-Groups collect shortcuts under one prefix (`:dev`, `:sys`, `:p`).
+Groups collect shortcuts under one prefix (`:dev`, `:sys`).
 - `query_mode = "filter"`: query filters by label.
 - `query_mode = "pass"`: query is passed as `{query}` to each entry.
 
@@ -291,6 +297,22 @@ label    = "Suspend"
 base     = "systemctl suspend"
 mode     = "shell"
 run_mode = "spawn"
+
+[[shortcuts]]
+group     = "sys"
+label     = "Reboot"
+base      = "systemctl reboot"
+mode      = "shell"
+run_mode  = "spawn"
+stay_open = false
+
+[[shortcuts]]
+group     = "sys"
+label     = "Shutdown"
+base      = "systemctl poweroff"
+mode      = "shell"
+run_mode  = "spawn"
+stay_open = false
 ```
 
 Pass-through example (multi-tool search):
@@ -311,10 +333,6 @@ label = "Docs: "
 base  = "https://docs.example.com/search?q={query}"
 mode  = "url"
 ```
-
-### Power group
-The power menu is a normal group named `power`; `:p` is an alias from
-`[power].prefix`.
 
 ## Vim mode
 Enable with `[input].vim_mode = true` in `~/.config/nimlaunch/nimlaunch.toml`.
