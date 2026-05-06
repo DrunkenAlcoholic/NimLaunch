@@ -22,6 +22,12 @@ loads PNG/SVG icons through the SDL3 stack.
 - Icons from `.desktop` files (PNG/SVG) with theme-aware lookup; can be disabled.
 - Window opacity setting (0.1–1.0) via SDL3 when supported.
 
+## Documentation
+- [Configuration Guide](docs/configuration.md)
+- [Themes](docs/themes.md)
+- [Groups and Shortcuts](docs/groups-and-shortcuts.md)
+- [Dmenu Mode](docs/dmenu.md)
+
 ## Install
 Grab a compiled binary from the releases:
 https://github.com/Vyrnexis/NimLaunch/releases
@@ -123,15 +129,7 @@ still rasterizes glyphs in software.
   is writable.
 
 ## Dmenu Mode
-Use `--dmenu` to turn NimLaunch into a generic selector for stdin-provided
-items. In this mode NimLaunch does not scan desktop applications; it reads
-newline-separated entries from `stdin`, lets you filter them with the normal UI,
-prints the selected line to `stdout`, and exits.
-
-Behavior:
-- `Enter` prints the selected line and exits with status `0`
-- `Esc` cancels and exits with status `1`
-- empty query preserves the original input order
+`--dmenu` turns NimLaunch into a generic selector for stdin-provided items.
 
 Example:
 
@@ -139,40 +137,13 @@ Example:
 printf "one\ntwo\nthree\n" | ./nimlaunch --dmenu
 ```
 
-Typical uses:
-- audio sink picker
-- power/session menu
-- any global text-based selector driven by a wrapper script
+Behavior:
+- `Enter` prints the selected line and exits with status `0`
+- `Esc` cancels and exits with status `1`
+- empty query preserves the original input order
 
-Included example:
-- `examples/dmenu/audio-sink-picker.sh`
-
-To expose that script inside NimLaunch itself, add a grouped shortcut like:
-
-```toml
-[[groups]]
-name = "media"
-query_mode = "filter"
-
-[[shortcuts]]
-group    = "media"
-label    = "Audio Sink"
-base     = "~/.local/bin/audio-sink-picker.sh"
-mode     = "shell"
-run_mode = "spawn"
-```
-
-Install the script somewhere on your `PATH` such as `~/.local/bin`, or use the
-repo copy directly while testing:
-
-```toml
-[[shortcuts]]
-group    = "media"
-label    = "Audio Sink"
-base     = "/absolute/path/to/NimLaunch/examples/dmenu/audio-sink-picker.sh"
-mode     = "shell"
-run_mode = "spawn"
-```
+See [Dmenu Mode](docs/dmenu.md) for real use cases, wrapper patterns, and the
+included audio sink example.
 
 ## Quick Reference
 Core controls:
@@ -204,166 +175,13 @@ Core controls:
 ## Configuration
 Config path: `~/.config/nimlaunch/nimlaunch.toml` (auto-generated on first run).
 
-```toml
-[window]
-width = 500
-opacity = 1.0          # 0.1–1.0; may be ignored on some Wayland setups
-max_visible_items = 10
-center = true
-position_x = 20
-position_y = 500
-vertical_align = "one-third"
-display = 0
+The checked-in [example config](examples/nimlaunch.toml) matches the generated
+default.
 
-[font]
-fontname = "Noto Sans:size=12"
+For the full config layout, field descriptions, theme handling, and generated
+default behavior, see [Configuration Guide](docs/configuration.md).
 
-[input]
-prompt   = "> "
-cursor   = "_"
-vim_mode = false
-
-[terminal]
-program = "kitty"
-
-[border]
-width = 2
-
-[icons]
-enabled = true                    # Set to false to hide icons in the list
-
-[[groups]]
-name = "sys"
-query_mode = "filter"
-
-[[shortcuts]]
-prefix = ":g"            # write "g", ":g", or "g:" — all map to :g in the UI
-label  = "Search Google: "
-base   = "https://www.google.com/search?q={query}"
-mode   = "url"            # other options: "shell", "file"
-
-[[themes]]
-name                = "Nord"
-bgColorHex          = "#2E3440"
-fgColorHex          = "#D8DEE9"
-highlightBgColorHex = "#88C0D0"
-highlightFgColorHex = "#2E3440"
-borderColorHex      = "#4C566A"
-matchFgColorHex     = "#f8c291"
-
-[theme]
-last_chosen = "Nord"
-```
-
-`vertical_align` only affects Y when `center = true` (`top`, `center`, `one-third`).
-`display` selects the monitor index when centered (`0` = primary, `1` = second, ...).
-
-## Shortcuts (how they work)
-A shortcut is a `:`-triggered template. Text after the prefix is inserted as
-`{query}`.
-
-Fields:
-- `prefix`: what you type after `:` (e.g., `g`, `note`, `rg`).
-- `label`: text shown in the results list.
-- `base`: template command/URL/path. Use `{query}` where the input should go.
-- `mode = "url"`: opens URL (query is URL-encoded).
-- `mode = "shell"`: runs shell command (query is safely quoted).
-- `mode = "file"`: opens file/folder (`~` expands).
-
-If `group` is set, `prefix` is optional because the group name becomes the
-prefix (e.g., `:dev`, `:sys`).
-
-## Groups (powerful shortcuts)
-Groups collect shortcuts under one prefix (`:dev`, `:sys`).
-- `query_mode = "filter"`: query filters by label.
-- `query_mode = "pass"`: query is passed as `{query}` to each entry.
-
-Filter example (menu-style):
-```toml
-[[groups]]
-name = "sys"
-query_mode = "filter"
-
-[[shortcuts]]
-group    = "sys"
-label    = "Lock"
-base     = "loginctl lock-session"
-mode     = "shell"
-run_mode = "spawn"
-
-[[shortcuts]]
-group    = "sys"
-label    = "Suspend"
-base     = "systemctl suspend"
-mode     = "shell"
-run_mode = "spawn"
-
-[[shortcuts]]
-group     = "sys"
-label     = "Reboot"
-base      = "systemctl reboot"
-mode      = "shell"
-run_mode  = "spawn"
-stay_open = false
-
-[[shortcuts]]
-group     = "sys"
-label     = "Shutdown"
-base      = "systemctl poweroff"
-mode      = "shell"
-run_mode  = "spawn"
-stay_open = false
-```
-
-Pass-through example (multi-tool search):
-```toml
-[[groups]]
-name = "dev"
-query_mode = "pass"
-
-[[shortcuts]]
-group = "dev"
-label = "Issues: "
-base  = "gh issue list --search {query}"
-mode  = "shell"
-
-[[shortcuts]]
-group = "dev"
-label = "Docs: "
-base  = "https://docs.example.com/search?q={query}"
-mode  = "url"
-```
-
-## Vim mode
-Enable with `[input].vim_mode = true` in `~/.config/nimlaunch/nimlaunch.toml`.
-General controls in Quick Reference still apply; Vim mode adds:
-
-| Trigger | Effect |
-| ------- | ------ |
-| `j` / `k` | Move selection down / up |
-| `h` | Delete one character from the input |
-| `l` | Launch the highlighted entry |
-| `gg` / `Shift+G` | Jump to top / bottom of the list |
-| `/` | Open the command bar for search |
-| `:` | Open the command bar for prefix commands |
-| `!` | Open the command bar for run commands (`:r` shorthand) |
-| `Esc` | Close the command bar and keep current filtered results |
-| `:q` (then Enter) | Quit NimLaunch from the command bar |
-
-## File discovery & caching
-NimLaunch indexes `.desktop` files from:
-
-1. `~/.local/share/applications`
-2. `~/.local/share/flatpak/exports/share/applications`
-3. each `<dir>/applications` from `$XDG_DATA_DIRS` (defaults to `/usr/local/share:/usr/share`)
-4. `/var/lib/flatpak/exports/share/applications`
-
-App metadata is cached in `~/.cache/nimlaunch/apps.json` and invalidated when
-source dirs change. Entries with `NoDisplay=true`, `Hidden=true`,
-`Terminal=true`, or exact `Settings` / `System` categories are skipped.
-Recent launches are tracked in `~/.cache/nimlaunch/recent.json`.
-
-## Themes
-- Use `:t` to browse themes, preview with Up/Down, and press Enter to keep.
-- Leaving `:t` without Enter restores the previous theme.
-- Add/edit `[[themes]]` in TOML to create custom palettes.
+## More Detail
+- Shortcut and group configuration: [Groups and Shortcuts](docs/groups-and-shortcuts.md)
+- Theme definition and persistence: [Themes](docs/themes.md)
+- `--dmenu` wrappers and patterns: [Dmenu Mode](docs/dmenu.md)
