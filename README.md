@@ -174,7 +174,7 @@ Core controls:
 ## Configuration
 Config path: `~/.config/nimlaunch/nimlaunch.toml` (auto-generated on first run).
 
-The checked-in [example config](examples/nimlaunch.toml) matches the generated
+The checked-in [example config](examples/nimlaunch.toml) is the generated
 default.
 
 For the full config layout, field descriptions, theme handling, and generated
