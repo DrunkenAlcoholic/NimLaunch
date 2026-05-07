@@ -29,7 +29,7 @@ loads PNG/SVG icons through the SDL3 stack.
 - [Dmenu Mode](docs/dmenu.md)
 
 ## Install
-Grab a compiled binary from the [releases page](../../releases).
+Grab a compiled binary from the [releases page](../../../releases).
 
 ## Build
 > [!NOTE]
@@ -68,7 +68,7 @@ sudo eopkg it sdl3-devel sdl3-ttf-devel sdl3-image
 
 ### Build from source
 ```bash
-git clone https://github.com/<your-username>/NimLaunch.git
+git clone https://codeberg.org/Vyrnexis/NimLaunch.git
 cd NimLaunch
 ```
 
