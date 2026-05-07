@@ -18,7 +18,7 @@ loads PNG/SVG icons through the SDL3 stack.
 - Prefix commands: `:t`, `:c`, `:s`, `:r`, `!`, and custom groups.
 - Vim mode (optional): `j/k` navigation, `/ : !` command bar, `gg/G`, `:q`, etc.
 - Themes with live preview, status/toast messages, and clock overlay.
-- `--dmenu` mode for scripts, audio menus, and other stdin-driven workflows.
+- `--dmenu` mode for scripts, and other stdin-driven workflows.
 - Icons from `.desktop` files (PNG/SVG) with theme-aware lookup; can be disabled.
 - Window opacity setting (0.1–1.0) via SDL3 when supported.
 
