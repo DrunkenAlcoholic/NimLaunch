@@ -3,7 +3,8 @@ set -euo pipefail
 
 NIMLAUNCH_BIN="${NIMLAUNCH_BIN:-nimlaunch}"
 WPCTL_BIN="${WPCTL_BIN:-wpctl}"
-PWDUMP_BIN="${PWDUMP_BIN:-pw-dump}"
+# PipeWire graph dump tool used to enumerate real Audio/Sink nodes.
+PIPEWIRE_DUMP_BIN="${PIPEWIRE_DUMP_BIN:-pw-dump}"
 
 if ! command -v "$NIMLAUNCH_BIN" >/dev/null 2>&1 && [[ ! -x "$NIMLAUNCH_BIN" ]]; then
   printf 'audio-sink-picker: nimlaunch not found (set NIMLAUNCH_BIN)\n' >&2
@@ -15,7 +16,7 @@ if ! command -v "$WPCTL_BIN" >/dev/null 2>&1; then
   exit 127
 fi
 
-if ! command -v "$PWDUMP_BIN" >/dev/null 2>&1; then
+if ! command -v "$PIPEWIRE_DUMP_BIN" >/dev/null 2>&1; then
   printf 'audio-sink-picker: pw-dump not found\n' >&2
   exit 127
 fi
@@ -31,7 +32,7 @@ default_sink_id() {
 }
 
 sink_rows() {
-  "$PWDUMP_BIN" --raw 2>/dev/null | perl -MJSON::PP -e '
+  "$PIPEWIRE_DUMP_BIN" --raw 2>/dev/null | perl -MJSON::PP -e '
     local $/;
     my $json = <STDIN>;
     my $data = eval { JSON::PP::decode_json($json) };
