@@ -11,7 +11,7 @@ bin           = @["nimlaunch"]
 # Dependencies
 
 requires "nim >= 2.0"
-requires "sdl3 == 1.0"
+requires "https://github.com/nim-lang/sdl3"
 requires "parsetoml"
 
 
