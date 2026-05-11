@@ -1,10 +1,10 @@
 # ==========================
 # NimLaunch Configuration
 # ==========================
-# This file controls how NimLaunch looks and behaves.
+# Example NimLaunch configuration.
+# Copy this to ~/.config/nimlaunch/nimlaunch.toml and adjust it for your system.
 # All settings are optional — if removed, defaults will be used.
-# Edit values, save, and restart NimLaunch to apply changes.
-# Colors must be in HEX format (e.g., "#RRGGBB").
+# Colors must be in HEX format (e.g. "#RRGGBB").
 
 [window]
 width = 500                       # Width of the launcher window in pixels
@@ -25,8 +25,7 @@ cursor = "_"                      # Cursor character displayed after query text
 vim_mode = false                  # true enables Vim-style modes/hjkl navigation
 
 [terminal]
-program = "gnome-terminal"        # Terminal emulator for slash commands (/ ...)
-                                  # If not found, NimLaunch will fall back to a default
+program = "gnome-terminal"        # Replace this with your preferred terminal
 
 [border]
 width = 2                         # Border thickness in pixels (0 = no border)
@@ -35,20 +34,10 @@ width = 2                         # Border thickness in pixels (0 = no border)
 enabled = true                    # Set to false to hide icons in the list
 
 # ==========================
-# Groups
-# ==========================
-# Define group names used by [[shortcuts]].
-# query_mode = "filter" (default) or "pass".
-
-[[groups]]
-name = "sys"
-query_mode = "filter"
-
-# ==========================
 # Shortcuts
 # ==========================
 # Define custom prefix triggers. Each shortcut supports:
-#   prefix  = letters you trigger with ':' (e.g., ":g"); leading/trailing ':' is optional
+#   prefix  = letters you trigger with ':' (e.g. ':g')
 #   label   = text shown before your query in the results list
 #   base    = template containing optional {query} placeholder
 #   mode    = "url" (default), "shell", or "file"
@@ -74,10 +63,75 @@ label  = "Search YouTube: "
 base   = "https://www.youtube.com/results?search_query={query}"
 mode   = "url"
 
+[[shortcuts]]
+prefix = ":man"
+label  = "Man page search: "
+base   = "https://man.archlinux.org/search?q={query}"
+mode   = "url"
+
 # ==========================
-# Run commands
+# Groups
 # ==========================
-# Use `:r` (or `!`) to execute shell commands directly without a custom shortcut.
+# Define group names used by [[shortcuts]].
+# query_mode = "filter" (default) or "pass".
+
+[[groups]]
+name = "sys"
+query_mode = "filter"
+
+[[groups]]
+name = "svc"
+query_mode = "pass"
+
+[[groups]]
+name = "dev"
+query_mode = "pass"
+
+[[groups]]
+name = "ss"
+query_mode = "filter"
+
+[[groups]]
+name = "proj"
+query_mode = "filter"
+
+[[groups]]
+name = "media"
+query_mode = "filter"
+
+# ==========================
+# Grouped shortcuts
+# ==========================
+
+[[shortcuts]]
+group     = "svc"
+label     = "systemctl status: "
+base      = "systemctl status {query}"
+mode      = "shell"
+
+[[shortcuts]]
+group     = "svc"
+label     = "systemctl show: "
+base      = "systemctl show {query}"
+mode      = "shell"
+
+[[shortcuts]]
+group     = "svc"
+label     = "systemctl cat: "
+base      = "systemctl cat {query}"
+mode      = "shell"
+
+[[shortcuts]]
+group     = "svc"
+label     = "journalctl -u (this boot): "
+base      = "journalctl -u {query} -b"
+mode      = "shell"
+
+[[shortcuts]]
+group     = "svc"
+label     = "journalctl -u (recent errors): "
+base      = "journalctl -u {query} -xe"
+mode      = "shell"
 
 [[shortcuts]]
 group     = "sys"
@@ -118,6 +172,76 @@ base      = "loginctl terminate-user $USER"
 mode      = "shell"
 run_mode  = "spawn"
 stay_open = false
+
+[[shortcuts]]
+group     = "dev"
+label     = "Nim docs: "
+base      = "https://nim-lang.org/docs/search.html?q={query}"
+mode      = "url"
+
+[[shortcuts]]
+group     = "dev"
+label     = "GitHub code search: "
+base      = "https://github.com/search?q={query}&type=code"
+mode      = "url"
+
+[[shortcuts]]
+group     = "dev"
+label     = "Arch Wiki: "
+base      = "https://wiki.archlinux.org/index.php?search={query}"
+mode      = "url"
+
+[[shortcuts]]
+group     = "ss"
+label     = "Screenshot area -> clipboard"
+base      = "grim -g \"$(slurp)\" - | wl-copy"
+mode      = "shell"
+run_mode  = "spawn"
+
+[[shortcuts]]
+group     = "ss"
+label     = "Screenshot area -> save"
+base      = "mkdir -p ~/Pictures/Screenshots && grim -g \"$(slurp)\" ~/Pictures/Screenshots/$(date '+%Y-%m-%d_%H-%M-%S').png"
+mode      = "shell"
+run_mode  = "spawn"
+
+[[shortcuts]]
+group     = "ss"
+label     = "Full screenshot -> clipboard"
+base      = "grim - | wl-copy"
+mode      = "shell"
+run_mode  = "spawn"
+
+[[shortcuts]]
+group     = "ss"
+label     = "Full screenshot -> save"
+base      = "mkdir -p ~/Pictures/Screenshots && grim ~/Pictures/Screenshots/$(date '+%Y-%m-%d_%H-%M-%S').png"
+mode      = "shell"
+run_mode  = "spawn"
+
+[[shortcuts]]
+group     = "media"
+label     = "Audio Sink"
+base      = "~/.local/bin/audio-sink-picker.sh"
+mode      = "shell"
+run_mode  = "spawn"
+
+[[shortcuts]]
+group     = "proj"
+label     = "NimLaunch repo"
+base      = "~/Projects/YourName/NimLaunch"
+mode      = "file"
+
+[[shortcuts]]
+group     = "proj"
+label     = "Blog repo"
+base      = "~/Projects/YourName/your-site-or-blog"
+mode      = "file"
+
+# ==========================
+# Run commands
+# ==========================
+# Use `:r` (or `!`) to execute shell commands directly without a custom shortcut.
 
 # ==========================
 # Themes
@@ -1159,4 +1283,3 @@ highlightBgColorHex = "#151515"
 highlightFgColorHex = "#000000"
 borderColorHex      = "#777777"
 matchFgColorHex     = "#ff6a38"
-

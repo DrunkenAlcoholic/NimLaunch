@@ -126,16 +126,20 @@ in [Themes](themes.md).
 
 ## Generated Defaults
 
-The checked-in [example config](../examples/nimlaunch.toml)
-matches the embedded default template in
-[`src/state.nim`](../src/state.nim).
+The first-run generated config is embedded in:
 
-That file is the reference for:
+- [`src/state.nim`](../src/state.nim)
+
+That embedded template is the reference for:
 
 - first-run generated config
 - default groups
 - default shortcuts
 - bundled themes
+
+The checked-in [example config](../examples/nimlaunch.toml) is a richer public
+sample built from the same format, but it is not a byte-for-byte copy of the
+embedded default.
 
 ## Related Docs
 
