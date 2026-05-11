@@ -29,17 +29,15 @@ loads PNG/SVG icons through the SDL3 stack.
 - [Dmenu Mode](docs/dmenu.md)
 
 ## Install
-Grab a compiled binary from the [releases page](../../../releases).
+Grab a compiled binary from the [releases page](https://codeberg.org/Vyrnexis/NimLaunch/releases).
 
 ## Build
 > [!NOTE]
 > Runtime/build deps: `nim >= 2.0`, `sdl3`, `sdl3-ttf`, `sdl3-image`, plus a font
 > (default `ttf-dejavu`).
 >
-> Nim package note: this project pulls the Nim SDL3 wrapper directly from
-> `https://github.com/nim-lang/sdl3#3d98171f5aea71a29d639049372d4f570b2ddd5c`
-> because it imports `sdl3_ttf` and expects the official `nim-lang/sdl3`
-> wrapper layout.
+> Nim package note: the Nim SDL3 and `parsetoml` sources are vendored in
+> `packages/`, so Nimble does not need to download those wrappers separately.
 >
 > Optional helpers:
 > - `fd` and/or `locate` for faster `:s` file search
@@ -74,11 +72,10 @@ cd NimLaunch
 ```
 
 ```bash
+nimble build          # package/default build -> ./nimlaunch
 nimble -y nimDebug    # debug build -> ./bin/nimlaunch
-nimble build          # package/default debug build -> ./nimlaunch
 nimble -y nimRelease  # release build for current CPU (fastest on this machine) -> ./bin/nimlaunch
-nimble -y nimReleasePortable  # portable + smaller release build (generic x86_64 baseline) -> ./bin/nimlaunch
-nimble -y nimPortable  # compatibility alias for nimReleasePortable
+nimble -y nimPortable  # portable + smaller release build (generic x86_64 baseline) -> ./bin/nimlaunch
 ```
 
 For a more portable release build (via Zig/clang), use:
@@ -86,20 +83,18 @@ For a more portable release build (via Zig/clang), use:
 ```bash
 nimble -y zigDebug    # debug build -> ./bin/nimlaunch
 nimble -y zigRelease  # release build for current CPU via Zig/clang -> ./bin/nimlaunch
-nimble -y zigReleasePortable  # portable + smaller Zig/clang release build (generic x86_64 baseline) -> ./bin/nimlaunch
-nimble -y zigPortable  # compatibility alias for zigReleasePortable
+nimble -y zigPortable  # portable + smaller Zig/clang release build (generic x86_64 baseline) -> ./bin/nimlaunch
 ```
 
-Use `nimble c` if you need custom compiler flags while keeping Nimble-managed
-dependency paths:
+Use `nimble c` from project root if you need custom compiler flags:
 
 ```bash
 nimble c -d:release --opt:speed -o:./bin/nimlaunch src/nimlaunch.nim
 ```
 
 ```bash
-./nimlaunch          # from `nimble build`
-./bin/nimlaunch      # from task builds above
+./nimlaunch
+./bin/nimlaunch
 ```
 
 Place the binary (`nimlaunch`) somewhere on your `PATH` (e.g., `~/.local/bin`) and
@@ -113,11 +108,11 @@ still rasterizes glyphs in software.
 ## Troubleshooting
 - Build fails with `cannot open .../src/nimlaunch.nim`: build from project root,
   and use `nimble build`, `nimble c ...`, or the provided Nimble tasks.
-- Build fails with `cannot open file: sdl3_ttf`: your Nimble environment is
-  resolving the wrong wrapper. This project expects the official
-  `nim-lang/sdl3` dependency pinned in `NimLaunch.nimble`.
+- Build fails with `cannot open file: sdl3` or `parsetoml`: make sure you are
+  building from project root so `config.nims` can add the vendored `packages/`
+  paths.
 - `nimble nimPortable` or `nimble zigPortable` is unknown: update to the current
-  `.nimble` file or use `nimReleasePortable` / `zigReleasePortable`.
+  `.nimble` file.
 - `:s` search feels slow: install `fd` and/or `locate` so search avoids the
   slower `$HOME` fallback walk.
 - Icons are missing for SVG apps: ensure your `SDL3_image` build includes SVG
