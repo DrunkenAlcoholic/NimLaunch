@@ -1,6 +1,6 @@
 # Package
 
-version       = "0.9.1"
+version       = "0.10.1"
 author        = "Vyrnexis"
 description   = "NimLaunch in SDL3 for native X11 and Wayland"
 license       = "MIT"
