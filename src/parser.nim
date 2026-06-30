@@ -226,9 +226,16 @@ proc parseDesktopFile*(path: string): Option[DesktopApp] =
       catHit = true
       break
 
+  let tryExec = kv.getOrDefault("TryExec", "")
+  var tryExecMissing = false
+  if tryExec.len > 0:
+    let absPath = findExe(tryExec)
+    if absPath.len == 0:
+      tryExecMissing = true
+
   let launchable =
     name.len > 0 and exec.len > 0 and
-    not noDisplay and not hidden and not terminalApp and not catHit
+    not noDisplay and not hidden and not terminalApp and not catHit and not tryExecMissing
 
   if launchable:
     var desktopActions: seq[DesktopEntryAction] = @[]

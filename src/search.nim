@@ -1,6 +1,7 @@
 ## search.nim — file search helpers and shared constants.
 
 import std/[os, strutils, osproc, streams, tables]
+import ./paths
 
 const
   SearchDebounceMs* = 240 # debounce for s: while typing (unified)
@@ -90,7 +91,7 @@ proc scanFilesFast*(query: string): seq[string] =
 
     ## --- Final fallback: bounded walk under $HOME -----------------------
     var count = 0
-    for path in walkDirRec(home, yieldFilter = {pcFile}):
+    for path in walkDirDepth(home, maxDepth = 3, yieldFilter = {pcFile}):
       if path.toLowerAscii.contains(ql):
         result.add(path)
         inc count

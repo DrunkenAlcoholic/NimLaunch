@@ -17,10 +17,6 @@ const
   K_BACKSPACE = SDLK_BACKSPACE
   K_DELETE = SDLK_DELETE
   K_ESCAPE = SDLK_ESCAPE
-  K_SLASH = SDLK_SLASH
-  K_KP_DIVIDE = SDLK_KP_DIVIDE
-  K_SEMICOLON = SDLK_SEMICOLON
-  K_EXCLAIM = SDLK_EXCLAIM
   K_LEFT = SDLK_LEFT
   K_RIGHT = SDLK_RIGHT
   K_UP = SDLK_UP
@@ -155,48 +151,10 @@ proc handleVimCommandKey*(sym: Keycode; ctrlHeld: bool;
     ## Printable characters are handled by TextInput; do not block.
     false
 
-proc openVimCommandForTrigger*(text: string; shiftHeld: bool;
+proc handleVimNormalKey*(sym: Keycode; modState: Keymod;
     suppressText: var bool): bool =
-  ## Open the Vim command bar for '/', ':' or '!'. Return true if consumed.
-  if text.len == 0:
-    return false
-  let trigger = if text[0] == ';' and shiftHeld: ':' else: text[0]
-  case trigger
-  of '/':
-    openVimCommand("")
-  of ':':
-    openVimCommand(":")
-  of '!':
-    openVimCommand("!")
-  else:
-    return false
-  suppressText = true
-  true
-
-proc handleVimNormalKey*(sym: Keycode; text: string; modState: Keymod;
-    suppressText: var bool): bool =
-  ## Handle Vim-mode nav/open keys when not in command-line. Return true if consumed.
+  ## Handle Vim-mode nav keys when not in command-line. Return true if consumed.
   let shiftHeld = (modState and ShiftMask) != 0
-  ## Directly detect slash/colon/bang on keycodes so non-US layouts and numpad divide work.
-  case sym
-  of K_SLASH, K_KP_DIVIDE:
-    vim.pendingG = false
-    openVimCommand("")
-    suppressText = true
-    return true
-  of K_SEMICOLON:
-    if shiftHeld:
-      vim.pendingG = false
-      openVimCommand(":")
-      suppressText = true
-      return true
-  of K_EXCLAIM:
-    vim.pendingG = false
-    openVimCommand("!")
-    suppressText = true
-    return true
-  else:
-    discard
 
   case sym
   of K_g:
@@ -235,21 +193,15 @@ proc handleVimNormalKey*(sym: Keycode; text: string; modState: Keymod;
     suppressText = true
     true
   else:
-    if openVimCommandForTrigger(text, shiftHeld, suppressText):
-      return true
-    elif text.len > 0:
-      vim.pendingG = false
-      suppressText = true
-      return true
     vim.pendingG = false
     false
 
-proc handleVimKey*(sym: Keycode; text: string; modState: Keymod;
+proc handleVimKey*(sym: Keycode; modState: Keymod;
     suppressText: var bool) =
   if vim.active:
     discard handleVimCommandKey(sym, (modState and CtrlMask) != 0, suppressText)
   else:
-    discard handleVimNormalKey(sym, text, modState, suppressText)
+    discard handleVimNormalKey(sym, modState, suppressText)
 
 proc resetVimState*() =
   vim = VimCommandState()
@@ -396,10 +348,6 @@ proc handleKeyDown*(ev: Event; focus: var FocusState;
   let ctrlHeld = (modState and CtrlMask) != 0
   let shiftHeld = (modState and ShiftMask) != 0
   var handled = false
-  var text = ""
-  let code = sym.int
-  if code >= 32 and code <= 126:
-    text = $(chr(code))
   focus.hadFocus = true
   if ctrlHeld and sym == K_v:
     handled = pasteInputText()
@@ -408,7 +356,7 @@ proc handleKeyDown*(ev: Event; focus: var FocusState;
     handled = pasteInputText()
     suppressNextTextInput = handled
   elif config.vimMode:
-    handleVimKey(sym, text, modState, suppressNextTextInput)
+    handleVimKey(sym, modState, suppressNextTextInput)
     handled = suppressNextTextInput
   elif sym == K_u and ctrlHeld:
     clearInput()
@@ -479,6 +427,7 @@ proc handleTextInput*(ev: Event; focus: var FocusState;
       openVimCommand("!")
       return true
     else:
-      discard
+      vim.pendingG = false
+      return true
   appendTextInput(s)
   true

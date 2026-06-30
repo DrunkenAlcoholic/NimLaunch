@@ -389,6 +389,7 @@ proc initLauncherConfig*() =
     saveLastTheme(cfgPath)
 
   ## guard rails for config values that affect layout/search limits
+  st.config.winWidth = clamp(st.config.winWidth, 200, 4000)
   if st.config.maxVisibleItems < 1:
     st.config.maxVisibleItems = 1
   if st.config.borderWidth < 0:

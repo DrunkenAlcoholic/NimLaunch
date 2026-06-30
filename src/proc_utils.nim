@@ -138,27 +138,20 @@ proc buildShellCommand*(cmd, shExe: string; hold = false):
   (fullCmd, shArgs)
 
 proc runCommand*(cmd: string): bool =
-  ## Run `cmd` in the user's terminal; fall back to /bin/sh if none.
+  ## Run `cmd` in the user's terminal. Fails gracefully if no terminal is found.
   let bash = findExe("bash")
   let shExe = if bash.len > 0: bash else: "/bin/sh"
-  proc runShellFallback(): bool =
-    let (_, shArgs) = buildShellCommand(cmd, shExe)
-    try:
-      discard startProcess(shExe, args = shArgs,
-                           options = {poDaemon, poParentStreams})
-      return true
-    except CatchableError as e:
-      echo "runCommand failed: ", cmd, " (", e.name, "): ", e.msg
-      return false
 
-  var parts = tokenize(chooseTerminal()) # parser.tokenize on config.terminalExe/$TERMINAL
+  var parts = tokenize(chooseTerminal())
   if parts.len == 0:
-    return runShellFallback()
+    echo "runCommand failed: No terminal emulator configured or found."
+    return false
 
   let exe = parts[0]
   let exePath = findExe(exe)
   if exePath.len == 0:
-    return runShellFallback()
+    echo "runCommand failed: Terminal emulator '", exe, "' not found."
+    return false
 
   var termArgs = if parts.len > 1: parts[1..^1] else: @[]
   let base = exe.extractFilename()
@@ -171,7 +164,7 @@ proc runCommand*(cmd: string): bool =
     true
   except CatchableError as e:
     echo "runCommand failed: ", cmd, " (", e.name, "): ", e.msg
-    runShellFallback()
+    false
 
 proc spawnShellCommand*(cmd: string): bool =
   ## Execute *cmd* via /bin/sh in the background; return success.
@@ -181,6 +174,16 @@ proc spawnShellCommand*(cmd: string): bool =
     true
   except CatchableError as e:
     echo "spawnShellCommand failed: ", cmd, " (", e.name, "): ", e.msg
+    false
+
+proc spawnProcess*(exe: string; args: openArray[string]): bool =
+  ## Execute *exe* directly without a shell in the background; return success.
+  try:
+    discard startProcess(exe, args = args,
+                         options = {poDaemon, poParentStreams})
+    true
+  except CatchableError as e:
+    echo "spawnProcess failed: ", exe, " (", e.name, "): ", e.msg
     false
 
 proc openUrl*(url: string): bool =

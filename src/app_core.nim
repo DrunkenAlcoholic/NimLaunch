@@ -368,7 +368,8 @@ proc buildSearchActions(rest: string): seq[Action] =
 
   var paths: seq[string]
   if lastSearchQuery.len > 0 and rest.len >= lastSearchQuery.len and
-     rest.startsWith(lastSearchQuery) and lastSearchResults.len > 0:
+     rest.startsWith(lastSearchQuery) and lastSearchResults.len > 0 and
+     lastSearchResults.len < SearchFdCap:
     paths = lastSearchResults
   elif getCachedSearchResults(rest, paths):
     discard
@@ -613,7 +614,11 @@ proc performAction*(a: Action) =
   of akApp:
     ## safer: strip .desktop field codes before launching
     let sanitized = parser.stripFieldCodes(a.exec).strip()
-    if spawnShellCommand(sanitized):
+    let args = parser.tokenize(sanitized)
+    var success = false
+    if args.len > 0:
+      success = spawnProcess(args[0], args[1..^1])
+    if success:
       recordAppLaunch(a.label)
     else:
       gui.notifyStatus("Failed: " & a.label, 1600)
@@ -621,7 +626,11 @@ proc performAction*(a: Action) =
   of akAppAction:
     ## safer: strip .desktop field codes before launching
     let sanitized = parser.stripFieldCodes(a.exec).strip()
-    if spawnShellCommand(sanitized):
+    let args = parser.tokenize(sanitized)
+    var success = false
+    if args.len > 0:
+      success = spawnProcess(args[0], args[1..^1])
+    if success:
       recordAppLaunch(a.appData.name)
     else:
       gui.notifyStatus("Failed: " & a.label, 1600)

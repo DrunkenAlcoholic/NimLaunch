@@ -54,7 +54,7 @@ proc saveRecent*() =
   ## Persist state.recentApps to disk; log on error.
   try:
     createDir(recentFile.parentDir)
-    writeFile(recentFile, pretty(%state.recentApps))
+    writeFile(recentFile, $ %state.recentApps)
   except CatchableError as e:
     echo "saveRecent warning: ", recentFile, " (", e.name, "): ", e.msg
 
@@ -72,7 +72,7 @@ proc saveUsage*() =
   ## Persist per-app usage stats to disk; log on error.
   try:
     createDir(usageFile.parentDir)
-    writeFile(usageFile, pretty(%appUsage))
+    writeFile(usageFile, $ %appUsage)
   except CatchableError as e:
     echo "saveUsage warning: ", usageFile, " (", e.name, "): ", e.msg
 

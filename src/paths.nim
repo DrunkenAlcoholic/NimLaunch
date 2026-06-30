@@ -55,3 +55,16 @@ proc applicationDirs*(): seq[string] =
     if d.len == 0 or d in seen: continue
     seen.incl(d)
     result.add(d)
+
+iterator walkDirDepth*(dir: string; maxDepth: int; yieldFilter: set[PathComponent] = {pcFile, pcDir}): string =
+  ## Recursively walk a directory up to maxDepth.
+  ## maxDepth = 0 means only the files in `dir` itself.
+  if dirExists(dir):
+    var stack = @[(dir, 0)]
+    while stack.len > 0:
+      let (currentDir, depth) = stack.pop()
+      for kind, path in walkDir(currentDir, relative = false):
+        if kind in yieldFilter:
+          yield path
+        if depth < maxDepth and (kind == pcDir or kind == pcLinkToDir):
+          stack.add((path, depth + 1))

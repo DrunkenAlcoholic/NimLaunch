@@ -8,7 +8,7 @@ proc loadConfigFiles*() =
   configFilesCache.setLen(0)
   let base = userConfigHome()
   try:
-    for path in walkDirRec(base, yieldFilter = {pcFile}):
+    for path in walkDirDepth(base, maxDepth = 2, yieldFilter = {pcFile}):
       let fn = path.extractFilename
       if fn.len == 0: continue
       configFilesCache.add DesktopApp(
