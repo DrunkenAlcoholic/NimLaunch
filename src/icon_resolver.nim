@@ -180,15 +180,18 @@ proc searchIconInDir(base: string; size: int; iconName: string;
 
   proc checkName(name: string): string =
     let sizeDir = $size & "x" & $size
+    let kdeSizeDir = $size
     let primaryGroups = ["apps", "legacy"]
     let auxGroups = ["actions", "categories", "devices", "emblems",
-                     "mimetypes", "places", "status", "panel"]
+                     "mimetypes", "places", "preferences", "status", "panel"]
     var rels: seq[string] = @[]
     for grp in primaryGroups:
       rels.add(sizeDir / grp / name)
+      rels.add(grp / kdeSizeDir / name)
     if includeAuxGroups:
       for grp in auxGroups:
         rels.add(sizeDir / grp / name)
+        rels.add(grp / kdeSizeDir / name)
       rels.add(sizeDir / name)
     if includeScalable:
       for grp in primaryGroups:
@@ -309,4 +312,3 @@ proc resolveIconPath*(iconName: string; requestedSize: int): string =
           return p
 
   result = ""
-

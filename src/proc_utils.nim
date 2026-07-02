@@ -180,7 +180,7 @@ proc spawnProcess*(exe: string; args: openArray[string]): bool =
   ## Execute *exe* directly without a shell in the background; return success.
   try:
     discard startProcess(exe, args = args,
-                         options = {poDaemon, poParentStreams})
+                         options = {poDaemon, poParentStreams, poUsePath})
     true
   except CatchableError as e:
     echo "spawnProcess failed: ", exe, " (", e.name, "): ", e.msg
