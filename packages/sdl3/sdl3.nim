@@ -9,7 +9,7 @@ elif defined(windows):
 elif defined(macosx):
   const LibName* = "libSDL3.dylib"
 else:
-  const LibName* = "libSDL3.so"
+  const LibName* = "libSDL3.so.0"
 
 when defined(emscripten):
   {.push callConv: cdecl.}

@@ -7,7 +7,7 @@ when defined(windows):
 elif defined(macosx):
   const ImgLibName* = "libSDL3_image.dylib"
 else:
-  const ImgLibName* = "libSDL3_image.so"
+  const ImgLibName* = "libSDL3_image.so.0"
 
 proc loadTexture*(renderer: Renderer; file: cstring): Texture {.
     importc: "IMG_LoadTexture", cdecl, dynlib: ImgLibName.}

@@ -8,7 +8,7 @@ when defined(windows):
 elif defined(macosx):
   const TtfLibName* = "libSDL3_ttf.dylib"
 else:
-  const TtfLibName* = "libSDL3_ttf.so"
+  const TtfLibName* = "libSDL3_ttf.so.0"
 
 type
   FontObj {.incompletestruct.} = object
