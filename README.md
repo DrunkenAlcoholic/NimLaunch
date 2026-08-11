@@ -1,5 +1,9 @@
 # NimLaunch (SDL3)
 
+The lighting fast original X11 only version is available here:
+
+https://github.com/Vyrnexis/NimLaunch-X11
+
 NimLaunch is a keyboard-first launcher for Wayland and X11 built on SDL3. It
 covers three main workflows:
 
