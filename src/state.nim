@@ -4,6 +4,10 @@
 import std/tables
 # ── Data structures ─────────────────────────────────────────────────────
 type
+  DmenuItem* = object
+    label*: string
+    iconName*: string
+
   Rgb* = object
     r*, g*, b*: uint8
 
@@ -157,7 +161,7 @@ var
   themePreviewBaseTheme*: string
   themePreviewCurrent*: string
   dmenuMode*: bool = false
-  dmenuItems*: seq[string] = @[]
+  dmenuItems*: seq[DmenuItem] = @[]
   dmenuAccepted*: bool = false
   dmenuOutput*: string
 

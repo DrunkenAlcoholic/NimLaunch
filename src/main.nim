@@ -15,7 +15,17 @@ proc loadDmenuInput() =
     var item = line
     if item.len > 0 and item[^1] == '\r':
       item.setLen(item.len - 1)
-    dmenuItems.add item
+    if item.len > 0:
+      var label = item
+      var iconName = ""
+      let nullPos = item.find('\0')
+      if nullPos != -1:
+        label = item[0 ..< nullPos]
+        let remainder = item[nullPos + 1 .. ^1]
+        let prefix = "icon\x1f"
+        if remainder.startsWith(prefix):
+          iconName = remainder[prefix.len .. ^1]
+      dmenuItems.add DmenuItem(label: label, iconName: iconName)
 
 proc processSearchDebounce(): bool =
   ## Debounce wake-up: if we're in s: search, rebuild after idle.

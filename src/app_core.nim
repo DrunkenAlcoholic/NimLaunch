@@ -420,12 +420,12 @@ proc buildDmenuActions(rest: string): seq[Action] =
   let query = rest
   if query.len == 0:
     for item in dmenuItems:
-      result.add Action(kind: akDmenu, label: item, exec: item, iconName: "")
+      result.add Action(kind: akDmenu, label: item.label, exec: item.label, iconName: item.iconName)
   else:
     var top = initHeapQueue[(int, int)]()
     let limit = max(250, config.maxVisibleItems * 8)
     for i, item in dmenuItems:
-      let s = scoreMatch(query, item, item, "")
+      let s = scoreMatch(query, item.label, item.label, "")
       if s > -1_000_000:
         push(top, (s, i))
         if top.len > limit:
@@ -439,8 +439,8 @@ proc buildDmenuActions(rest: string): seq[Action] =
         result = cmp(a[1], b[1])
     )
     for item in ranked:
-      let label = dmenuItems[item[1]]
-      result.add Action(kind: akDmenu, label: label, exec: label, iconName: "")
+      let dItem = dmenuItems[item[1]]
+      result.add Action(kind: akDmenu, label: dItem.label, exec: dItem.label, iconName: dItem.iconName)
 
   if result.len == 0:
     result.add Action(kind: akPlaceholder, label: "No matches", exec: "")

@@ -22,6 +22,16 @@ Behavior:
 
 This mode is intended for wrapper scripts and global selection menus.
 
+## Icon Support
+
+NimLaunch natively supports Rofi's inline icon syntax! If you append `\0icon\x1f<icon-name>` to any line, NimLaunch will automatically extract the label, render the icon alongside it using your current system theme, and return *only* the clean label to `stdout` upon selection.
+
+Example:
+
+```bash
+printf "Terminal\0icon\x1futilities-terminal\nFirefox\0icon\x1ffirefox\n" | nimlaunch --dmenu
+```
+
 ## Good Use Cases
 
 `--dmenu` is strongest when the source list is:
@@ -40,18 +50,29 @@ Good examples:
 - device/profile selectors backed by system tools
 
 
-## Audio Sink Example
+## Provided Examples
 
-The repo includes one practical example:
+The repository includes several practical examples in the `examples/dmenu/` directory demonstrating what `--dmenu` is capable of:
 
-- [examples/dmenu/audio-sink-picker.sh](../examples/dmenu/audio-sink-picker.sh)
+1. **[audio-sink-picker.sh](../examples/dmenu/audio-sink-picker.sh)**
+   - Enumerates real PipeWire `Audio/Sink` nodes.
+   - Sets the selected sink as the new default through `wpctl`.
 
-That script:
+2. **[bluetooth-picker.sh](../examples/dmenu/bluetooth-picker.sh)**
+   - Uses `bluetoothctl` to list all paired devices dynamically.
+   - Toggles the connection on or off for the selected device.
 
-- enumerates real PipeWire `Audio/Sink` nodes
-- marks the current default sink
-- launches NimLaunch in `--dmenu` mode
-- sets the selected sink as the new default through `wpctl`
+3. **[wifi-picker.sh](../examples/dmenu/wifi-picker.sh)**
+   - Uses `nmcli` to scan and list nearby WiFi networks.
+   - Connects to the selected network.
+
+4. **[clip-history.sh](../examples/dmenu/clip-history.sh)**
+   - Hooks into `wl-clipboard` (via `cliphist`) to show recent clipboard items.
+   - Copies the selected history item back into your active clipboard.
+
+5. **[power-menu.sh](../examples/dmenu/power-menu.sh)**
+   - A clean, icon-supported Exit menu (Lock, Suspend, Logout, Reboot, Shutdown).
+   - Safely triggers system state changes using `systemctl` / `loginctl`.
 
 ## Wiring A Dmenu Script Into NimLaunch
 
