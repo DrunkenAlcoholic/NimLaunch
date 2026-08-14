@@ -1,6 +1,6 @@
 # NimLaunch (SDL3)
 
-The lighting fast original X11 only version is available here:
+The lightning fast original X11 only version is available here:
 
 https://github.com/Vyrnexis/NimLaunch-X11
 
@@ -75,12 +75,12 @@ to find the matching package variant.
 
 ### Solus
 ```bash
-sudo eopkg it sdl3-devel sdl3-ttf-devel sdl3-image
+sudo eopkg it sdl3-devel sdl3-ttf-devel sdl3-image-devel
 ```
 
 ### Build from source
 ```bash
-git clone https://codeberg.org/Vyrnexis/NimLaunch.git
+git clone https://github.com/Vyrnexis/NimLaunch.git
 cd NimLaunch
 ```
 

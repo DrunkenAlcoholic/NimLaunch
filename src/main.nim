@@ -2,10 +2,21 @@ import std/[os, strutils, syncio]
 import sdl3
 import ./[state, app_core, gui, utils, settings, search, input, apps_cache, theme_session]
 
+const Version = "0.10.3"
+
 proc configureStartupMode() =
   for i in 1 .. paramCount():
     let arg = paramStr(i)
-    if arg == "--dmenu":
+    if arg == "--version" or arg == "-v":
+      echo "NimLaunch v", Version
+      quit 0
+    elif arg == "--list-themes":
+      listThemesMode = true
+    elif arg == "--dry-run":
+      dryRunMode = true
+    elif arg == "--verbose":
+      verboseMode = true
+    elif arg == "--dmenu":
       dmenuMode = true
 
 proc loadDmenuInput() =
@@ -42,12 +53,18 @@ proc processSearchDebounce(): bool =
   false
 
 proc main*() =
+  let startupTimeMs = gui.nowMs()
   configureStartupMode()
 
   if not dmenuMode and not ensureSingleInstance():
     echo "NimLaunch is already running."
     quit 0
   initLauncherConfig()
+
+  if listThemesMode:
+    for th in themeList:
+      echo th.name
+    quit 0
   if dmenuMode:
     loadDmenuInput()
   else:
@@ -87,9 +104,11 @@ proc main*() =
         if handleTextInput(ev, focus, suppressNextTextInput):
           gui.redrawWindow()
       of EVENT_TEXT_EDITING:
-        discard handleTextEditing(ev)
+        if handleTextEditing(ev):
+          gui.redrawWindow()
       of EVENT_TEXT_EDITING_CANDIDATES:
-        discard handleTextEditingCandidates(ev)
+        if handleTextEditingCandidates(ev):
+          gui.redrawWindow()
       else:
         discard
 
@@ -99,10 +118,17 @@ proc main*() =
       gui.redrawWindow()
       continue
 
-    delay(10)
+    delay(config.pollIntervalMs.uint32)
 
   if themePreviewActive:
     endThemePreviewSession(false)
+
+  if verboseMode:
+    let uptimeMs = gui.nowMs() - startupTimeMs
+    stderr.writeLine "NimLaunch shutting down."
+    stderr.writeLine "  Uptime: " & $uptimeMs & " ms"
+    stderr.writeLine "  Apps parsed: " & $allApps.len
+    stderr.writeLine "  Icons cached: " & $getIconCacheSize()
 
   gui.shutdownGui()
   if dmenuMode:

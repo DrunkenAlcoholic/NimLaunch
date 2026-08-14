@@ -176,7 +176,7 @@ stay_open = false
 [[shortcuts]]
 group     = "dev"
 label     = "Nim docs: "
-base      = "https://nim-lang.org/docs/search.html?q={query}"
+base      = "https://nim-lang.org/docs/lib.html"
 mode      = "url"
 
 [[shortcuts]]

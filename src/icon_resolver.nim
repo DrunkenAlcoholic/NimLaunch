@@ -209,9 +209,11 @@ proc searchIconInDir(base: string; size: int; iconName: string;
         rels.add("symbolic" / name)
 
     for rel in rels:
-      let hit = pickExisting(base / rel)
-      if hit.len > 0:
-        return hit
+      let dir = base / splitPath(rel).head
+      if dirExists(dir):
+        let hit = pickExisting(base / rel)
+        if hit.len > 0:
+          return hit
     ""
 
   if hasExt:

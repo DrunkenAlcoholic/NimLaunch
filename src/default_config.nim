@@ -17,6 +17,7 @@ position_x = 20                   # X position in pixels when center=false
 position_y = 500                  # Y position in pixels when center=false
 vertical_align = "one-third"      # Only used when center=true; "top", "center", or "one-third"
 display = 0                       # Display index when center=true (0 = primary)
+pollIntervalMs = 10               # Main loop polling interval in milliseconds
 
 [font]
 fontname = "Dejavu:size=16"       # Font name & size (e.g., "Font Family:size=N")

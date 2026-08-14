@@ -63,6 +63,7 @@ type
     themeName*: string
     terminalExe*: string     ## preferred terminal program
     vimMode*: bool
+    pollIntervalMs*: int
 
     # Resolved colours (set after theme application) --------------------
     bgColor*, fgColor*, highlightBgColor*, highlightFgColor*,
@@ -164,6 +165,9 @@ var
   dmenuItems*: seq[DmenuItem] = @[]
   dmenuAccepted*: bool = false
   dmenuOutput*: string
+  listThemesMode*: bool = false
+  dryRunMode*: bool = false
+  verboseMode*: bool = false
 
 # ── Constants ───────────────────────────────────────────────────────────
 const

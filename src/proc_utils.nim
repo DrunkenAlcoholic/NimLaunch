@@ -43,7 +43,10 @@ proc openPathWithDefault*(path: string): bool =
     let head = tokens[0]
     var exePath: string
     if head.contains('/'):
-      exePath = expandFilename(head)
+      try:
+        exePath = expandFilename(head)
+      except OSError:
+        continue
       if not fileExists(exePath):
         exePath = ""
     else:

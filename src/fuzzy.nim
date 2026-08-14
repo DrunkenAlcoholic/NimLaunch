@@ -47,6 +47,32 @@ proc isWordBoundary*(lt: string; idx: int): bool =
   let c = lt[idx-1]
   c == ' ' or c == '-' or c == '_' or c == '.' or c == '/'
 
+proc withinOneEdit(a, b: string): bool =
+  let m = a.len; let n = b.len
+  if abs(m - n) > 1: return false
+  var i = 0; var j = 0; var edits = 0
+  while i < m and j < n:
+    if a[i] == b[j]: inc i; inc j
+    else:
+      inc edits; if edits > 1: return false
+      if m == n: inc i; inc j
+      elif m < n: inc j
+      else: inc i
+  edits += (m - i) + (n - j)
+  edits <= 1
+
+proc withinOneTransposition(a, b: string): bool =
+  if a.len != b.len or a.len < 2: return false
+  var k = 0
+  while k < a.len and a[k] == b[k]: inc k
+  if k >= a.len - 1: return false
+  if not (a[k] == b[k+1] and a[k+1] == b[k]): return false
+  let tailStart = k + 2
+  result = if tailStart < a.len:
+    a[tailStart .. ^1] == b[tailStart .. ^1]
+  else:
+    true
+
 proc scoreMatch*(q, t, fullPath, home: string): int =
   ## Heuristic score for matching q against t (higher is better).
   ## Typo-friendly: 1 edit (ins/del/sub) or one adjacent transposition.
@@ -54,33 +80,6 @@ proc scoreMatch*(q, t, fullPath, home: string): int =
   let lq = q.toLowerAscii
   let lt = t.toLowerAscii
   let pos = lt.find(lq)
-
-  ## fast helpers (no alloc)
-  proc withinOneEdit(a, b: string): bool =
-    let m = a.len; let n = b.len
-    if abs(m - n) > 1: return false
-    var i = 0; var j = 0; var edits = 0
-    while i < m and j < n:
-      if a[i] == b[j]: inc i; inc j
-      else:
-        inc edits; if edits > 1: return false
-        if m == n: inc i; inc j
-        elif m < n: inc j
-        else: inc i
-    edits += (m - i) + (n - j)
-    edits <= 1
-
-  proc withinOneTransposition(a, b: string): bool =
-    if a.len != b.len or a.len < 2: return false
-    var k = 0
-    while k < a.len and a[k] == b[k]: inc k
-    if k >= a.len - 1: return false
-    if not (a[k] == b[k+1] and a[k+1] == b[k]): return false
-    let tailStart = k + 2
-    result = if tailStart < a.len:
-      a[tailStart .. ^1] == b[tailStart .. ^1]
-    else:
-      true
 
   var s = -1_000_000
   if pos >= 0:

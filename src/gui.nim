@@ -49,13 +49,17 @@ type
     fontPath: string
     baseFontSize: int
     metrics: UiMetrics
-    lastDisplayID: DisplayID
     iconCache: Table[string, IconTexture]
     iconPathCache: Table[string, string]
+    textCache: Table[string, tuple[tex: Texture, w, h: int]]
+    textCacheQueue: seq[string]
     windowShown: bool
     windowRaised: bool
 
 var st: BackendState
+
+proc getIconCacheSize*(): int =
+  if st != nil: st.iconCache.len else: 0
 
 const
   WindowDebug* = defined(nimlaunchWindowDebug)
@@ -264,6 +268,10 @@ proc configureTextInput() =
 proc destroyState() =
   if st.isNil: return
   discard stopTextInput(st.window)
+  for _, entry in st.textCache:
+    if not entry.tex.isNil: destroyTexture(entry.tex)
+  st.textCache.clear()
+  st.textCacheQueue.setLen(0)
   for _, tex in st.iconCache:
     if not tex.isNil and not tex.tex.isNil:
       destroyTexture(tex.tex)
@@ -400,12 +408,16 @@ proc refreshMetrics*(force = false): bool =
       next.drawH != st.metrics.drawH or next.lineHeightPx != st.metrics.lineHeightPx or
       next.borderWidthPx != st.metrics.borderWidthPx
   st.metrics = next
-  st.lastDisplayID = next.displayID
   # Rebuild scale-sensitive resources only when their effective pixel size changes.
   if fontScaleChanged:
     rebuildFonts()
   if iconSizeChanged:
     destroyIconTextures()
+  if fontScaleChanged or metricsChanged or displayChanged:
+    for _, entry in st.textCache:
+      if not entry.tex.isNil: destroyTexture(entry.tex)
+    st.textCache.clear()
+    st.textCacheQueue.setLen(0)
   updateTextInputArea()
 
   when WindowDebug:
@@ -466,6 +478,11 @@ proc windowMetrics*(): tuple[winW, winH, drawW, drawH: int] =
 proc notifyThemeChanged*(name: string) =
   currentThemeName = name
   lastThemeSwitchMs = nowMs()
+  if not st.isNil:
+    for _, entry in st.textCache:
+      if not entry.tex.isNil: destroyTexture(entry.tex)
+    st.textCache.clear()
+    st.textCacheQueue.setLen(0)
 
 proc notifyStatus*(text: string; durationMs = 800) =
   statusText = text
@@ -558,13 +575,29 @@ proc toFRect(x, y, w, h: int): FRect =
 
 proc renderText(font: Font; text: string; color: Color): Texture =
   if text.len == 0 or font.isNil: return nil
+  let key = text & "|" & $cast[uint](font) & "|" & $color.r & "," & $color.g & "," & $color.b & "," & $color.a
+  if st.textCache.hasKey(key):
+    return st.textCache[key].tex
+
   let surf = renderTextBlended(font, text.cstring, text.len.csize_t, color)
   if surf.isNil: return nil
   let tex = createTextureFromSurface(st.renderer, surf)
   if tex.isNil:
     destroySurface(surf)
     return nil
+  let w = int(surf.w)
+  let h = int(surf.h)
   destroySurface(surf)
+
+  if st.textCacheQueue.len >= 256:
+    let oldKey = st.textCacheQueue[0]
+    st.textCacheQueue.delete(0)
+    if st.textCache.hasKey(oldKey):
+      destroyTexture(st.textCache[oldKey].tex)
+      st.textCache.del(oldKey)
+
+  st.textCache[key] = (tex, w, h)
+  st.textCacheQueue.add(key)
   tex
 
 proc measureText(font: Font; text: string): (int, int) =
@@ -615,10 +648,10 @@ proc getIconTexture(iconName: string; size: int): IconTexture =
     return nil
 
   let tex = loadIconTexture(path, size)
+  st.iconCache[cacheKey] = tex
   if tex.isNil:
     return nil
 
-  st.iconCache[cacheKey] = tex
   result = tex
 
 proc drawIconAt(slotX, y: int; slotSize: int; iconName: string): int =
@@ -680,7 +713,6 @@ proc drawText(x, y: int; text: string; spans: seq[(int, int)] = @[];
       discard getTextureSize(tex, tw, th)
       let dst = toFRect(textX, y, int(round(tw.float)), int(round(th.float)))
       discard renderTexture(st.renderer, tex, nil, dst.addr)
-      destroyTexture(tex)
 
   ## Highlight spans
   if spans.len > 0:
@@ -696,7 +728,6 @@ proc drawText(x, y: int; text: string; spans: seq[(int, int)] = @[];
       discard getTextureSize(tex, tw, th)
       let dst = toFRect(textX + preW, y, int(round(tw.float)), int(round(th.float)))
       discard renderTexture(st.renderer, tex, nil, dst.addr)
-      destroyTexture(tex)
 
 proc drawThemeOverlay() =
   if currentThemeName.len == 0: return
@@ -716,7 +747,6 @@ proc drawThemeOverlay() =
   discard getTextureSize(tex, tw, th)
   let dst = toFRect(tx, ty, int(round(tw.float)), int(round(th.float)))
   discard renderTexture(st.renderer, tex, nil, dst.addr)
-  destroyTexture(tex)
 
 proc drawStatusOverlay() =
   if statusText.len == 0: return
@@ -732,7 +762,6 @@ proc drawStatusOverlay() =
   discard getTextureSize(tex, tw, th)
   let dst = toFRect(tx, ty, int(round(tw.float)), int(round(th.float)))
   discard renderTexture(st.renderer, tex, nil, dst.addr)
-  destroyTexture(tex)
 
 proc drawClock(topRight = false) =
   let m = currentMetrics()
@@ -746,7 +775,6 @@ proc drawClock(topRight = false) =
   discard getTextureSize(tex, tw, th)
   let dst = toFRect(cx, cy, int(round(tw.float)), int(round(th.float)))
   discard renderTexture(st.renderer, tex, nil, dst.addr)
-  destroyTexture(tex)
 
 proc drawPromptAndInput(y: var int) =
   let m = currentMetrics()
@@ -805,7 +833,6 @@ proc drawCommandBar() =
       let pDst = toFRect(textX, barTop + (barHeight - ph) div 2, pw, ph)
       textX = textX + pw + m.overlayStackGapPx
       discard renderTexture(st.renderer, prefixTex, nil, pDst.addr)
-      destroyTexture(prefixTex)
   let barText = vim.buffer
   if barText.len > 0:
     let tex = renderText(st.font, barText, colHighlightFg)
@@ -816,7 +843,6 @@ proc drawCommandBar() =
       let dst = toFRect(textX, barTop + (barHeight - thI) div 2,
           int(round(tw.float)), thI)
       discard renderTexture(st.renderer, tex, nil, dst.addr)
-      destroyTexture(tex)
 
 proc drawBorder() =
   let m = currentMetrics()
@@ -825,13 +851,26 @@ proc drawBorder() =
   if borderWidth <= 0:
     return
   discard setRenderDrawColor(st.renderer, colBorder.r, colBorder.g, colBorder.b, 255'u8)
-  for i in 0 ..< borderWidth:
-    let rectW = m.logicalWinW - 1 - i * 2
-    let rectH = m.logicalWinH - 1 - i * 2
-    if rectW <= 0 or rectH <= 0:
-      break
-    let rect = toFRect(i, i, rectW, rectH)
-    discard renderRect(st.renderer, rect.addr)
+  
+  let w = m.logicalWinW.cfloat
+  let h = m.logicalWinH.cfloat
+  let bw = borderWidth.cfloat
+  
+  # Top border
+  var topRect = toFRect(0, 0, w.int, bw.int)
+  discard renderFillRect(st.renderer, topRect.addr)
+  
+  # Bottom border
+  var botRect = toFRect(0, (h - bw).int, w.int, bw.int)
+  discard renderFillRect(st.renderer, botRect.addr)
+  
+  # Left border
+  var leftRect = toFRect(0, bw.int, bw.int, (h - 2*bw).int)
+  discard renderFillRect(st.renderer, leftRect.addr)
+  
+  # Right border
+  var rightRect = toFRect((w - bw).int, bw.int, bw.int, (h - 2*bw).int)
+  discard renderFillRect(st.renderer, rightRect.addr)
 
 proc presentFrame() =
   if not st.windowShown:

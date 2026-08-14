@@ -28,7 +28,7 @@ proc desktopDirFingerprint(dir: string): tuple[newest: int64; signature: string]
       except CatchableError:
         discard
   paths.sort()
-  let pathHash = hash(paths.join(";"))
+  let pathHash = hash(paths)
   (newest, $count & ":" & $newest & ":" & $sumMtime & ":" & $sumSize & ":" & $pathHash)
 
 proc loadApplications*() =

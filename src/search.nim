@@ -56,7 +56,6 @@ proc scanFilesFast*(query: string): seq[string] =
   ##  2) `locate -i` (DB backed, may be stale)
   ##  3) bounded walk under $HOME (slowest)
   let home = getHomeDir()
-  let ql = query.toLowerAscii
   let limit = SearchFdCap
 
   try:
@@ -90,8 +89,10 @@ proc scanFilesFast*(query: string): seq[string] =
       return
 
     ## --- Final fallback: bounded walk under $HOME -----------------------
+    let ql = query.toLowerAscii
     var count = 0
     for path in walkDirDepth(home, maxDepth = 3, yieldFilter = {pcFile}):
+      if "/." in path: continue
       if path.toLowerAscii.contains(ql):
         result.add(path)
         inc count

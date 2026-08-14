@@ -1,4 +1,5 @@
 ## theme_session.nim — theme preview lifecycle helpers.
+## NOTE: This module could be merged later.
 
 import ./[state, settings]
 

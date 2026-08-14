@@ -8,21 +8,20 @@ const
   DefaultXdgConfigHome = ".config"
   DefaultXdgCacheHome = ".cache"
 
-proc userConfigHome*(): string =
-  ## Return XDG config home (respects $XDG_CONFIG_HOME).
-  let fromEnv = getEnv("XDG_CONFIG_HOME")
+proc getXdgHome(envVar, defaultSuffix: string): string =
+  let fromEnv = getEnv(envVar)
   if fromEnv.len > 0:
     return fromEnv.strip(chars = {DirSep, AltSep}, leading = false,
         trailing = true)
-  getHomeDir() / DefaultXdgConfigHome
+  getHomeDir() / defaultSuffix
+
+proc userConfigHome*(): string =
+  ## Return XDG config home (respects $XDG_CONFIG_HOME).
+  getXdgHome("XDG_CONFIG_HOME", DefaultXdgConfigHome)
 
 proc userCacheHome*(): string =
   ## Return XDG cache home (respects $XDG_CACHE_HOME).
-  let fromEnv = getEnv("XDG_CACHE_HOME")
-  if fromEnv.len > 0:
-    return fromEnv.strip(chars = {DirSep, AltSep}, leading = false,
-        trailing = true)
-  getHomeDir() / DefaultXdgCacheHome
+  getXdgHome("XDG_CACHE_HOME", DefaultXdgCacheHome)
 
 proc configDir*(): string =
   ## Return the base config directory for NimLaunch (~/.config/nimlaunch).
@@ -61,10 +60,27 @@ iterator walkDirDepth*(dir: string; maxDepth: int; yieldFilter: set[PathComponen
   ## maxDepth = 0 means only the files in `dir` itself.
   if dirExists(dir):
     var stack = @[(dir, 0)]
+    var seen = initHashSet[string]()
+    try:
+      seen.incl(expandFilename(dir))
+    except CatchableError:
+      discard
+
     while stack.len > 0:
       let (currentDir, depth) = stack.pop()
       for kind, path in walkDir(currentDir, relative = false):
-        if kind in yieldFilter:
+        # We also want to yield symlinks to files if the user wants files
+        let isFileLink = kind == pcLinkToFile and pcFile in yieldFilter
+        if kind in yieldFilter or isFileLink:
           yield path
+        
         if depth < maxDepth and (kind == pcDir or kind == pcLinkToDir):
-          stack.add((path, depth + 1))
+          var realPath = path
+          try:
+            realPath = expandFilename(path)
+          except CatchableError:
+            continue
+            
+          if not seen.contains(realPath):
+            seen.incl(realPath)
+            stack.add((path, depth + 1))

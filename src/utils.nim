@@ -8,16 +8,7 @@
 import std/[os, strutils, json, options, times, tables]
 import ./[state, paths]
 
-# ── Shell helpers ───────────────────────────────────────────────────────
-## Quote a string for safe use inside a POSIX shell single-quoted context.
-proc shellQuote*(s: string): string =
-  result = "'"
-  for ch in s:
-    if ch == '\'':
-      result.add("'\\''") # close ' … escape ' … reopen '
-    else:
-      result.add(ch)
-  result.add("'")
+
 
 proc normalizePrefix*(prefix: string): string =
   ## Canonicalise user-configured prefixes by trimming colons/whitespace and

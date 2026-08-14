@@ -96,7 +96,7 @@ proc saveLastTheme*(cfgPath: string) =
   var themeSectionFound = false
   for i in 0..<lines.len:
     let l = lines[i].strip()
-    if l == "[theme]":
+    if l.toLowerAscii() == "[theme]":
       inTheme = true
       themeSectionFound = true
       continue
@@ -239,6 +239,7 @@ proc initLauncherConfig*() =
   st.config.matchFgColorHex = "#f8c291"
   st.config.vimMode = false
   st.config.showIcons = true
+  st.config.pollIntervalMs = 10
 
   ## Ensure TOML exists
   let cfgDir = configDir()
@@ -280,6 +281,8 @@ proc initLauncherConfig*() =
           st.config.verticalAlign)
       st.config.displayIndex = w.getOrDefault("display").getInt(
           st.config.displayIndex)
+      st.config.pollIntervalMs = w.getOrDefault("pollIntervalMs").getInt(
+          st.config.pollIntervalMs)
       st.config.opacity = w.getOrDefault("opacity").getFloat(st.config.opacity)
     except CatchableError:
       echo "NimLaunch warning: ignoring invalid [window] section in ", cfgPath

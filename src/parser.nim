@@ -65,9 +65,8 @@ proc isEnvAssign(tok: string): bool =
 
 proc containsIgnoreCase(a: openArray[string], needle: string): bool =
   ## Case-insensitive membership test for small arrays.
-  let n = needle.toLowerAscii
   for x in a:
-    if x.toLowerAscii == n:
+    if x.cmpIgnoreCase(needle) == 0:
       return true
   false
 

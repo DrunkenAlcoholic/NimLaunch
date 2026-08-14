@@ -159,7 +159,8 @@ type CmdKind* = enum
   ckSearch,   # `s:` fast file search
   ckGroup,    # user-defined group prefix
   ckShortcut, # custom shortcuts (e.g. :g, :wiki)
-  ckRun       # raw `r:` command
+  ckRun,      # raw `r:` command
+  ckQuit      # `:q` or `:quit` to exit
 
 proc takePrefix(input, pfx: string; rest: var string): bool =
   ## Consume a command prefix and return the remainder (trimmed).
@@ -191,6 +192,7 @@ proc parseCommand*(inputText: string): (CmdKind, string, int, string) =
     of "c": return (ckConfig, rest, -1, "")
     of "t": return (ckTheme, rest, -1, "")
     of "r": return (ckRun, rest, -1, "")
+    of "q", "quit": return (ckQuit, rest, -1, "")
     else:
       for i, sc in shortcuts:
         if sc.prefix.len == 0:
@@ -235,7 +237,7 @@ proc shortcutExec(sc: Shortcut; query: string): string =
   of smUrl:
     result = substituteQuery(sc.base, encodeUrl(query))
   of smShell:
-    result = substituteQuery(sc.base, shellQuote(query))
+    result = substituteQuery(sc.base, quoteShell(query))
   of smFile:
     result = substituteQuery(sc.base, query)
 
@@ -380,15 +382,13 @@ proc buildSearchActions(rest: string): seq[Action] =
   lastSearchQuery = rest
   lastSearchResults = paths
 
-  let maxScore = min(paths.len, SearchShowCap)
-
   let homeDir = getHomeDir()
   let homeDepth = pathDepth(homeDir)
   var topScores = initHeapQueue[(int, string)]()
   let limit = config.maxVisibleItems
   let queryLower = restLower
 
-  for idx in 0 ..< maxScore:
+  for idx in 0 ..< paths.len:
     let path = paths[idx]
     let fileName = path.extractFilename
     let score = scoreSearchCandidate(rest, queryLower, fileName, path, homeDir, homeDepth)
@@ -399,16 +399,14 @@ proc buildSearchActions(rest: string): seq[Action] =
 
   var ranked: seq[(int, string)] = @[]
   while topScores.len > 0: ranked.add pop(topScores)
-  ranked.sort(proc(a, b: (int, string)): int = cmp(b[0], a[0]))
+  ranked.reverse()
 
   let showCap = max(limit, min(40, SearchShowCap))
   for i, it in ranked:
     if i >= showCap: break
     let path = it[1]
     let fileName = path.extractFilename
-    var directory = path[0 ..< max(0, path.len - fileName.len)]
-    while directory.len > 0 and directory[^1] == '/':
-      directory.setLen(directory.len - 1)
+    let directory = os.parentDir(path)
     let pretty = fileName & " — " & shortenPath(directory)
     result.add Action(kind: akFile, label: pretty, exec: path, iconName: "")
 
@@ -433,6 +431,7 @@ proc buildDmenuActions(rest: string): seq[Action] =
     var ranked: seq[(int, int)] = @[]
     while top.len > 0:
       ranked.add pop(top)
+    # Using sort here instead of reverse because of the secondary key (item index)
     ranked.sort(proc(a, b: (int, int)): int =
       result = cmp(b[0], a[0])
       if result == 0:
@@ -579,6 +578,9 @@ proc buildActions*() =
     nextActions = buildSearchActions(rest)
   of ckRun:
     nextActions = buildRunActions(rest)
+  of ckQuit:
+    shouldExit = true
+    return
   else:
     discard
 
@@ -597,6 +599,11 @@ proc clearInput*() =
   buildActions()
 
 proc performAction*(a: Action) =
+  if dryRunMode:
+    stdout.write(a.exec & "\n")
+    shouldExit = true
+    return
+
   var exitAfter = true ## default: exit after action
   case a.kind
   of akRun:

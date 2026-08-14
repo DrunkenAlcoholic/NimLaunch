@@ -3,5 +3,4 @@
 
 import ./main
 
-when isMainModule:
-  main()
+main()
