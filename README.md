@@ -37,7 +37,7 @@ Grab a compiled binary from the [releases page](https://codeberg.org/Vyrnexis/Ni
 
 ## Build
 > [!NOTE]
-> Runtime/build deps: `nim >= 2.0`, `sdl3`, `sdl3-ttf`, `sdl3-image`, plus a font
+> Runtime/build deps: `nim >= 2.0`, `sdl3`, `sdl3_ttf`, `sdl3_image`, plus a font
 > (default `ttf-dejavu`).
 >
 > Nim package note: the Nim SDL3 and `parsetoml` sources are vendored in
@@ -48,7 +48,7 @@ Grab a compiled binary from the [releases page](https://codeberg.org/Vyrnexis/Ni
 
 ### Archlinux
 ```bash
-sudo pacman -S sdl3 sdl3-ttf sdl3-image ttf-dejavu --needed
+sudo pacman -S sdl3 sdl3_ttf sdl3_image ttf-dejavu --needed
 ```
 
 ### Ubuntu
