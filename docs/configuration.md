@@ -40,6 +40,7 @@ position_x = 20
 position_y = 500
 vertical_align = "one-third"
 display = 0
+pollIntervalMs = 10
 ```
 
 Meaning:
@@ -52,6 +53,7 @@ Meaning:
 - `vertical_align`: only used when centered; valid values are `top`, `center`,
   and `one-third`
 - `display`: monitor index used when centered
+- `pollIntervalMs`: sleep duration (in milliseconds) per event loop. Higher lowers CPU usage but decreases responsiveness (default: 10)
 
 ## Font
 

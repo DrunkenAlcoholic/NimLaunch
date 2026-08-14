@@ -24,7 +24,7 @@ loads PNG/SVG icons through the SDL3 stack.
 - Themes with live preview, status/toast messages, and clock overlay.
 - `--dmenu` mode for scripts, and other stdin-driven workflows (with native `rofi`-style icon support).
 - Icons from `.desktop` files (PNG/SVG) with theme-aware lookup; can be disabled.
-- Window opacity setting (0.1–1.0) via SDL3 when supported.
+- Window opacity setting (0.1–1.0)
 
 ## Documentation
 - [Configuration Guide](docs/configuration.md)
@@ -140,6 +140,13 @@ still rasterizes glyphs in software.
 - Theme changes do not persist: verify `~/.config/nimlaunch/nimlaunch.toml`
   is writable.
 
+## Command Line Flags
+- `--version`, `-v`: Print the current NimLaunch version and exit.
+- `--list-themes`: Print all available themes and exit.
+- `--verbose`: Dump internal metrics (uptime, cache sizes, parsing stats) to standard error upon closing.
+- `--dmenu`: Turns NimLaunch into a generic selector for stdin-provided items.
+- `--dry-run`: Used with `--dmenu` to print the selected item and exit without executing it.
+
 ## Dmenu Mode
 `--dmenu` turns NimLaunch into a generic selector for stdin-provided items.
 
@@ -181,6 +188,7 @@ Core controls:
 | `:s` | `:s notes` | Search files (`fd` → `locate` → bounded `$HOME` walk) |
 | `:c` | `:c sway` | Match files inside `~/.config` and open with the default handler |
 | `:r` | `:r htop` | Run a shell command inside your preferred terminal |
+| `:q`, `:quit` | `:q` | Exit NimLaunch immediately from the command bar |
 | `!` | `!htop` | Shorthand for `:r` without the colon |
 | `:<group>` | `:sys lock` | Run grouped shortcuts (for example a `sys` group for session/power actions) |
 
