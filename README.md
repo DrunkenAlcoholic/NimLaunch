@@ -33,7 +33,16 @@ loads PNG/SVG icons through the SDL3 stack.
 - [Dmenu Mode](docs/dmenu.md)
 
 ## Install
-Grab a compiled binary from the [releases page](https://codeberg.org/Vyrnexis/NimLaunch/releases).
+Grab a compiled binary from the [releases page](https://github.com/Vyrnexis/NimLaunch/releases).
+
+**Arch Linux (AUR)**
+You can install NimLaunch from the Arch User Repository using `yay` or `paru`:
+```bash
+# For the pre-built binary
+yay -S nimlaunch-bin
+# OR
+paru -S nimlaunch-bin
+```
 
 ## Build
 > [!NOTE]
