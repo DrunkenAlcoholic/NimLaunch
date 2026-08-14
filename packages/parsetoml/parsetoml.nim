@@ -743,7 +743,6 @@ proc parseDateOrTime(state: var ParserState, digits: int, yearOrHour: int): Toml
       of strutils.Whitespace:
         raise newTomlError(state, "leading zero not allowed")
       else: raise newTomlError(state, "illegal character")
-    break
 
 proc parseFloat(state: var ParserState, intPart: int, forcedSign: Sign): TomlValueRef =
   var
@@ -855,7 +854,6 @@ proc parseNumOrDate(state: var ParserState): TomlValueRef =
             else:
               state.pushBackChar(nextChar)
               return TomlValueRef(kind: TomlValueKind.Int, intVal: if forcedSign != Neg: -curSum else: curSum)
-          break
       of '+', '-':
         forcedSign = if nextChar == '+': Pos else: Neg
         continue
@@ -1488,7 +1486,11 @@ proc toTomlString*(value: TomlTableRef, parents = ""): string =
       elif value.kind == TomlValueKind.Array and
            value.arrayVal.len > 0 and
            value.arrayVal[0].kind == TomlValueKind.Table:
-        let tables = value.arrayVal.map(toTomlString)
+        let tables = value.arrayVal.mapIt(
+          if it.kind == TomlValueKind.Table:
+            let fullKey = (if parents.len > 0: parents & "." else: "") & key.toKey
+            it.tableVal.toTomlString(fullKey)
+          else: it.toTomlString)
         for table in tables:
           result = result & "[[" & key & "]]\n" & table & "\n"
       else:
