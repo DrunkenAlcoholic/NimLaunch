@@ -253,4 +253,7 @@ highlightFgColorHex = "#2E3440"
 borderColorHex      = "#4C566A"
 matchFgColorHex     = ""
 
+[theme]
+last_chosen = "Default"
+
 """
