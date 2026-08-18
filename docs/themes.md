@@ -2,8 +2,7 @@
 
 NimLaunch themes control the launcher colors and the persisted active theme.
 
-Themes are configured in `~/.config/nimlaunch/nimlaunch.toml` with repeated
-`[[themes]]` blocks plus a `[theme]` section for the current selection.
+Themes are configured in `~/.config/nimlaunch/nimlaunch.toml` with repeated `[[themes]]` blocks, plus a `[theme]` section for the current selection.
 
 ## Theme Block
 
@@ -22,30 +21,27 @@ matchFgColorHex     = "#f8c291"
 
 Fields:
 
-- `name`: label shown in the `:t` selector
-- `bgColorHex`: launcher background
-- `fgColorHex`: normal text
-- `highlightBgColorHex`: selected row background
-- `highlightFgColorHex`: selected row text
-- `borderColorHex`: border color
-- `matchFgColorHex`: color used for matching characters in search results
+- **`name`**: Label shown in the `:t` selector.
+- **`bgColorHex`**: Launcher background color.
+- **`fgColorHex`**: Normal text color.
+- **`highlightBgColorHex`**: Selected row background color.
+- **`highlightFgColorHex`**: Selected row text color.
+- **`borderColorHex`**: Border color.
+- **`matchFgColorHex`**: Color used for matching characters in search results.
 
-All colors must be valid hex colors in `#RRGGBB` format.
+All colors must be valid hex codes in `#RRGGBB` format.
 
 ## Selecting A Theme
 
-Use the built-in theme selector:
+Use the built-in theme selector by typing:
 
-```text
-:t
-```
+`:t`
 
 Then:
-
-- type to filter theme names
-- use Up/Down to preview
-- press `Enter` to keep the selected theme
-- press `Esc` to cancel out of the selector
+- Type to filter theme names.
+- Use Up/Down to preview themes.
+- Press `Enter` to keep the selected theme.
+- Press `Esc` to cancel and exit the selector.
 
 ## Persisted Theme
 
@@ -56,23 +52,20 @@ The active saved theme is tracked separately:
 last_chosen = "Nord"
 ```
 
-When a theme is accepted through `:t`, NimLaunch writes that value back to the
-config file.
+When a theme is accepted through the `:t` selector, NimLaunch writes that value back to the configuration file.
 
-## If Theme Changes Do Not Persist
+## Troubleshooting Theme Persistence
 
-Common causes:
+Common causes if a theme change does not persist:
+- The configuration file is not writable.
+- The configuration file contains invalid TOML syntax.
+- The saved theme name does not exist in the `[[themes]]` list.
 
-- the config file is not writable
-- the config file contains invalid TOML
-- the saved theme name does not exist in the `[[themes]]` list
-
-If the TOML is invalid, NimLaunch prints a startup parse warning and falls back
-to built-in defaults for that session.
+If the TOML is invalid, NimLaunch prints a startup parse warning and falls back to built-in defaults for that session.
 
 ## Custom Themes
 
-You can add your own themes by appending more `[[themes]]` blocks.
+You can add custom themes by appending additional `[[themes]]` blocks to your configuration file.
 
 Example:
 

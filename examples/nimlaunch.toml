@@ -133,45 +133,7 @@ label     = "journalctl -u (recent errors): "
 base      = "journalctl -u {query} -xe"
 mode      = "shell"
 
-[[shortcuts]]
-group     = "sys"
-label     = "Lock"
-base      = "loginctl lock-session"
-mode      = "shell"
-run_mode  = "spawn"
-stay_open = false
 
-[[shortcuts]]
-group     = "sys"
-label     = "Suspend"
-base      = "systemctl suspend"
-mode      = "shell"
-run_mode  = "spawn"
-stay_open = false
-
-[[shortcuts]]
-group     = "sys"
-label     = "Shutdown"
-base      = "systemctl poweroff"
-mode      = "shell"
-run_mode  = "spawn"
-stay_open = false
-
-[[shortcuts]]
-group     = "sys"
-label     = "Reboot"
-base      = "systemctl reboot"
-mode      = "shell"
-run_mode  = "spawn"
-stay_open = false
-
-[[shortcuts]]
-group     = "sys"
-label     = "Logout"
-base      = "loginctl terminate-user $USER"
-mode      = "shell"
-run_mode  = "spawn"
-stay_open = false
 
 [[shortcuts]]
 group     = "dev"
@@ -222,9 +184,71 @@ run_mode  = "spawn"
 [[shortcuts]]
 group     = "media"
 label     = "Audio Sink"
-base      = "~/.local/bin/audio-sink-picker.sh"
+base      = "bash ~/.config/nimlaunch/scripts/nimlaunch_audio.sh"
 mode      = "shell"
 run_mode  = "spawn"
+
+# ==========================================
+# Showcase Scripts
+# ==========================================
+# Make sure you have the required dependencies installed (e.g., jq, bc, cliphist, nmcli)
+# and copy the `examples/scripts/` folder to `~/.config/nimlaunch/scripts/`.
+
+[[shortcuts]]
+prefix    = ":m"
+label     = "Calculate: "
+base      = "res=$(echo {query} | bc -l); echo \"$res\" | wl-copy; notify-send 'Calculator' \"Result: $res\" -i accessories-calculator"
+mode      = "shell"
+run_mode  = "spawn"
+stay_open = false
+
+[[shortcuts]]
+group     = "scripts"
+label     = "Window Switcher"
+base      = "bash ~/.config/nimlaunch/scripts/nimlaunch_windows.sh"
+mode      = "shell"
+run_mode  = "spawn"
+stay_open = false
+
+[[shortcuts]]
+group     = "scripts"
+label     = "Clipboard Manager (Hyprland)"
+base      = "bash ~/.config/nimlaunch/scripts/nimlaunch_cliphist.sh"
+mode      = "shell"
+run_mode  = "spawn"
+stay_open = false
+
+[[shortcuts]]
+group     = "scripts"
+label     = "Clipboard Manager (KDE Klipper)"
+base      = "bash ~/.config/nimlaunch/scripts/nimlaunch_klipper.sh"
+mode      = "shell"
+run_mode  = "spawn"
+stay_open = false
+
+[[shortcuts]]
+group     = "scripts"
+label     = "WiFi Network Manager"
+base      = "bash ~/.config/nimlaunch/scripts/nimlaunch_wifi.sh"
+mode      = "shell"
+run_mode  = "spawn"
+stay_open = false
+
+[[shortcuts]]
+group     = "scripts"
+label     = "Bluetooth Manager"
+base      = "bash ~/.config/nimlaunch/scripts/nimlaunch_bluetooth.sh"
+mode      = "shell"
+run_mode  = "spawn"
+stay_open = false
+
+[[shortcuts]]
+group     = "sys"
+label     = "Power Menu"
+base      = "bash ~/.config/nimlaunch/scripts/nimlaunch_power.sh"
+mode      = "shell"
+run_mode  = "spawn"
+stay_open = false
 
 [[shortcuts]]
 group     = "proj"

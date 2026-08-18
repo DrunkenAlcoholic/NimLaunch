@@ -1,10 +1,8 @@
 # Dmenu Mode
 
-`--dmenu` turns NimLaunch into a generic selector UI.
+Using the `--dmenu` flag turns NimLaunch into a generic selector interface.
 
-Instead of scanning desktop applications, NimLaunch reads newline-separated
-items from `stdin`, shows them in the normal launcher UI, and returns the
-selected line on `stdout`.
+Instead of scanning desktop applications, NimLaunch reads newline-separated items from standard input (`stdin`), displays them in the standard launcher UI, and outputs the selected line to standard output (`stdout`).
 
 ## Basic Behavior
 
@@ -16,15 +14,15 @@ printf "one\ntwo\nthree\n" | nimlaunch --dmenu
 
 Behavior:
 
-- `Enter`: prints the selected line and exits with status `0`
-- `Esc`: cancels and exits with status `1`
-- empty query: preserves the original input order
+- **`Enter`**: Prints the selected line to `stdout` and exits with status `0`.
+- **`Esc`**: Cancels the selection and exits with status `1`.
+- **Empty Query**: Preserves the original input order without filtering.
 
-This mode is intended for wrapper scripts and global selection menus.
+This mode is designed for wrapper scripts and global selection menus.
 
 ## Icon Support
 
-NimLaunch natively supports Rofi's inline icon syntax! If you append `\0icon\x1f<icon-name>` to any line, NimLaunch will automatically extract the label, render the icon alongside it using your current system theme, and return *only* the clean label to `stdout` upon selection.
+NimLaunch natively supports Rofi's inline icon syntax. By appending `\0icon\x1f<icon-name>` to any line, NimLaunch extracts the label, renders the icon using your current system theme, and returns only the clean label to `stdout` upon selection.
 
 Example:
 
@@ -34,95 +32,80 @@ printf "Terminal\0icon\x1futilities-terminal\nFirefox\0icon\x1ffirefox\n" | niml
 
 ## Good Use Cases
 
-`--dmenu` is strongest when the source list is:
+The `--dmenu` mode is highly effective when the source list is dynamic, global, text-first, and independent of the current shell working directory. 
 
-- dynamic
-- global
-- text-first
-- not tied to the current shell working directory
-
-Good examples:
-
-- audio sink picker
-- power/session menu
-- SSH host selector
-- recent note or document picker
-- device/profile selectors backed by system tools
-
+Common applications include:
+- Audio sink pickers
+- Power and session menus
+- SSH host selectors
+- Recent document pickers
+- Device or profile selectors
 
 ## Provided Examples
 
-The repository includes several practical examples in the `examples/dmenu/` directory demonstrating what `--dmenu` is capable of:
+The repository includes several practical examples in the `examples/scripts/` directory demonstrating the capabilities of `--dmenu`:
 
-1. **[audio-sink-picker.sh](../examples/dmenu/audio-sink-picker.sh)**
+1. **[nimlaunch_audio.sh](../examples/scripts/nimlaunch_audio.sh)**
    - Enumerates real PipeWire `Audio/Sink` nodes.
    - Sets the selected sink as the new default through `wpctl`.
 
-2. **[bluetooth-picker.sh](../examples/dmenu/bluetooth-picker.sh)**
+2. **[nimlaunch_bluetooth.sh](../examples/scripts/nimlaunch_bluetooth.sh)**
    - Uses `bluetoothctl` to list all paired devices dynamically.
    - Toggles the connection on or off for the selected device.
 
-3. **[wifi-picker.sh](../examples/dmenu/wifi-picker.sh)**
+3. **[nimlaunch_wifi.sh](../examples/scripts/nimlaunch_wifi.sh)**
    - Uses `nmcli` to scan and list nearby WiFi networks.
    - Connects to the selected network.
 
-4. **[clip-history.sh](../examples/dmenu/clip-history.sh)**
+4. **[nimlaunch_cliphist.sh](../examples/scripts/nimlaunch_cliphist.sh)**
    - Hooks into `wl-clipboard` (via `cliphist`) to show recent clipboard items.
    - Copies the selected history item back into your active clipboard.
 
-5. **[power-menu.sh](../examples/dmenu/power-menu.sh)**
-   - A clean, icon-supported Exit menu (Lock, Suspend, Logout, Reboot, Shutdown).
-   - Safely triggers system state changes using `systemctl` / `loginctl`.
+5. **[nimlaunch_klipper.sh](../examples/scripts/nimlaunch_klipper.sh)**
+   - Designed for KDE Plasma users. Hooks into Klipper natively via `busctl` and `jq` without any X11/Wayland dependency issues.
+   - Copies the selected history item back into your active clipboard.
 
-## Wiring A Dmenu Script Into NimLaunch
+6. **[nimlaunch_power.sh](../examples/scripts/nimlaunch_power.sh)**
+   - A clean, icon-supported exit menu (Lock, Suspend, Logout, Reboot, Shutdown).
+   - Safely triggers system state changes using `systemctl` or `loginctl`.
 
-You can expose a script through a normal grouped shortcut.
+## Building Custom Scripts
 
-Example:
+You can build your own scripts that pipe content into NimLaunch. The standard wrapper pattern involves generating a list, piping it into NimLaunch, and processing the result.
+
+Skeleton script:
+
+```bash
+#!/bin/bash
+
+# 1. Build a newline-separated list and pipe it into NimLaunch
+choice="$(printf "Option 1\nOption 2\nOption 3\n" | nimlaunch --dmenu)" || exit 1
+
+# 2. Ensure a choice was made
+[ -n "$choice" ] || exit 1
+
+# 3. Perform the action
+echo "You selected: $choice"
+```
+
+## Integrating Scripts into NimLaunch
+
+Custom scripts can be exposed directly through NimLaunch using grouped shortcuts.
+
+Example configuration:
 
 ```toml
-[[groups]]
-name = "media"
-query_mode = "filter"
-
 [[shortcuts]]
 group    = "media"
 label    = "Audio Sink"
-base     = "~/.local/bin/audio-sink-picker.sh"
+base     = "~/.local/bin/nimlaunch_audio.sh"
 mode     = "shell"
 run_mode = "spawn"
 ```
 
-That gives you a normal launcher flow such as:
+This allows you to trigger your script seamlessly from within the launcher (e.g., typing `:media audio`).
 
-```text
-:media audio
-```
-
-## Wrapper Pattern
-
-The usual wrapper pattern is:
-
-1. build a newline-separated list
-2. pipe it into `nimlaunch --dmenu`
-3. read the selected line from `stdout`
-4. perform the real action
-
-Skeleton:
-
-```bash
-choice="$(some-command | nimlaunch --dmenu)" || exit 1
-[ -n "$choice" ] || exit 1
-do-something-with "$choice"
-```
-
-## Notes
-
-- `--dmenu` is a selector mode, not an app launcher mode
-- it does not need a `.desktop` source list
-- it is best used by scripts, not by hand-typing large static menus
-
-## Related Docs
+## Related Documentation
 
 - [Themes](themes.md)
 - [Configuration](configuration.md)

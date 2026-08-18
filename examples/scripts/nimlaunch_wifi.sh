@@ -7,17 +7,14 @@ if [[ -f "./bin/nimlaunch" ]]; then
     NIMLAUNCH="./bin/nimlaunch"
 fi
 
-wifi_list=$(nmcli --fields "SECURITY,SSID" device wifi list | sed 1d | grep -v "^--" | grep -v "^ $" | awk '!seen[$2]++')
-
-formatted_list=$(echo "$wifi_list" | awk '{
+# Inject icons and emojis based on security, and pipe directly into nimlaunch
+selected=$(nmcli --fields "SECURITY,SSID" device wifi list | sed 1d | grep -v "^--" | grep -v "^ $" | awk '!seen[$2]++' | awk '{
     if ($1 ~ /WPA/ || $1 ~ /WEP/) {
         print "🔒 " $2 "\0icon\x1fnetwork-wireless-encrypted"
     } else {
         print "🔓 " $2 "\0icon\x1fnetwork-wireless"
     }
-}')
-
-selected=$(echo "$formatted_list" | $NIMLAUNCH --dmenu -p "WiFi:")
+}' | $NIMLAUNCH --dmenu -p "WiFi:")
 
 if [[ -n "$selected" ]]; then
     ssid=$(echo "$selected" | awk '{print $2}')

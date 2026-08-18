@@ -243,10 +243,10 @@ proc initLauncherConfig*() =
 
   ## Ensure TOML exists
   let cfgDir = configDir()
-  let cfgPath = cfgDir / "nimlaunch.toml"
+  let cfgPath = if st.configOverridePath.len > 0: st.configOverridePath else: cfgDir / "nimlaunch.toml"
   if not fileExists(cfgPath):
     try:
-      createDir(cfgDir)
+      createDir(parentDir(cfgPath))
       writeFile(cfgPath, defaultToml)
       echo "Created default config at ", cfgPath
     except CatchableError as e:

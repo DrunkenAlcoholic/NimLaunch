@@ -1,21 +1,10 @@
 # Configuration
 
-NimLaunch reads its config from:
-
-```text
-~/.config/nimlaunch/nimlaunch.toml
-```
-
-If the file does not exist, NimLaunch generates one on first run from the
-embedded default template in the binary.
-
-If the file exists but contains invalid TOML, NimLaunch ignores it for that
-session, prints a parse error on startup, and uses built-in defaults until the
-file is fixed.
+NimLaunch reads its configuration from `~/.config/nimlaunch/nimlaunch.toml`. If the file does not exist, NimLaunch generates one on the first run from the embedded default template. If the file contains invalid TOML, NimLaunch ignores it for the current session, prints a parse error on startup, and uses built-in defaults.
 
 ## Layout
 
-The generated config is split into these sections:
+The generated configuration is split into the following sections:
 
 - `[window]`
 - `[font]`
@@ -43,17 +32,14 @@ display = 0
 pollIntervalMs = 10
 ```
 
-Meaning:
-
-- `width`: launcher width in pixels
-- `opacity`: `0.1` to `1.0`; may be ignored by some compositors
-- `max_visible_items`: number of rows before scrolling starts
-- `center`: if `true`, NimLaunch ignores `position_x` and centers the window
-- `position_x`, `position_y`: used only when `center = false`
-- `vertical_align`: only used when centered; valid values are `top`, `center`,
-  and `one-third`
-- `display`: monitor index used when centered
-- `pollIntervalMs`: sleep duration (in milliseconds) per event loop. Higher lowers CPU usage but decreases responsiveness (default: 10)
+- **`width`**: Launcher width in pixels.
+- **`opacity`**: Float between `0.1` and `1.0`. Note that some compositors may ignore this setting.
+- **`max_visible_items`**: Number of rows before scrolling begins.
+- **`center`**: If `true`, NimLaunch ignores `position_x` and centers the window.
+- **`position_x`**, **`position_y`**: Used only when `center` is `false`.
+- **`vertical_align`**: Used only when centered. Valid values are `top`, `center`, and `one-third`.
+- **`display`**: Monitor index used when centered.
+- **`pollIntervalMs`**: Sleep duration in milliseconds per event loop. A higher value lowers CPU usage but decreases responsiveness (default: 10).
 
 ## Font
 
@@ -62,15 +48,11 @@ Meaning:
 fontname = "Dejavu:size=16"
 ```
 
-This is a fontconfig-style font string. Use an installed font family and size.
+This uses a fontconfig-style string. Use an installed font family and size.
 
 Examples:
-
-```toml
-fontname = "Noto Sans:size=14"
-fontname = "JetBrains Mono:size=15"
-fontname = "Dejavu:size=16"
-```
+- `fontname = "Noto Sans:size=14"`
+- `fontname = "JetBrains Mono:size=15"`
 
 ## Input
 
@@ -81,9 +63,9 @@ cursor = "_"
 vim_mode = false
 ```
 
-- `prompt`: prefix shown before the active query
-- `cursor`: cursor glyph shown after the query
-- `vim_mode`: enables Vim-style movement and command handling
+- **`prompt`**: Prefix shown before the active query.
+- **`cursor`**: Cursor glyph shown after the query.
+- **`vim_mode`**: Enables Vim-style movement and command handling.
 
 ## Terminal
 
@@ -92,15 +74,7 @@ vim_mode = false
 program = "gnome-terminal"
 ```
 
-This is used by `:r` and `!` commands. Set it to the terminal you actually use.
-
-Examples:
-
-```toml
-program = "kitty"
-program = "foot"
-program = "gnome-terminal"
-```
+Specifies the terminal emulator used by `:r` and `!` commands. Set this to your preferred terminal (e.g., `kitty`, `foot`, or `gnome-terminal`).
 
 ## Border
 
@@ -109,7 +83,7 @@ program = "gnome-terminal"
 width = 2
 ```
 
-Set `0` to disable the border completely.
+Specifies the border width in pixels. Set to `0` to disable the border completely.
 
 ## Icons
 
@@ -118,32 +92,19 @@ Set `0` to disable the border completely.
 enabled = true
 ```
 
-NimLaunch resolves icons from standard desktop/icon-theme locations and loads
-PNG and SVG icons through `SDL3_image`.
+NimLaunch resolves icons from standard desktop and icon-theme locations, loading PNG and SVG icons through `SDL3_image`.
 
 ## Themes
 
-Theme structure, selection, persistence, and custom theme examples are covered
-in [Themes](themes.md).
+Theme structure, selection, persistence, and custom theme examples are detailed in [Themes](themes.md).
 
 ## Generated Defaults
 
-The first-run generated config is embedded in:
+The embedded template used for first-run generation is located in [`src/state.nim`](../src/state.nim). This template serves as the reference for the generated configuration, default groups, default shortcuts, and bundled themes.
 
-- [`src/state.nim`](../src/state.nim)
+The checked-in [example config](../examples/nimlaunch.toml) provides a richer public sample built from the same format.
 
-That embedded template is the reference for:
-
-- first-run generated config
-- default groups
-- default shortcuts
-- bundled themes
-
-The checked-in [example config](../examples/nimlaunch.toml) is a richer public
-sample built from the same format, but it is not a byte-for-byte copy of the
-embedded default.
-
-## Related Docs
+## Related Documentation
 
 - [Themes](themes.md)
 - [Groups and Shortcuts](groups-and-shortcuts.md)

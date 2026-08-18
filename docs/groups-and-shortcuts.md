@@ -1,25 +1,15 @@
-# Groups And Shortcuts
+# Groups and Shortcuts
 
-NimLaunch supports two related config concepts:
+NimLaunch supports two related configuration concepts for organizing commands:
 
-- `shortcuts`: actions triggered by a prefix or by selecting a grouped entry
-- `groups`: named collections used to organize shortcuts
+- **Shortcuts**: Actions triggered by a prefix or by selecting a grouped entry.
+- **Groups**: Named collections used to organize shortcuts.
 
 These are declared in `~/.config/nimlaunch/nimlaunch.toml`.
 
 ## Shortcut Fields
 
-Each `[[shortcuts]]` block can use:
-
-- `prefix`
-- `label`
-- `base`
-- `mode`
-- `group`
-- `run_mode`
-- `stay_open`
-
-Example:
+Each `[[shortcuts]]` block supports the following fields:
 
 ```toml
 [[shortcuts]]
@@ -29,21 +19,17 @@ base   = "https://www.google.com/search?q={query}"
 mode   = "url"
 ```
 
-Meaning:
-
-- `prefix`: what you type to trigger the shortcut
-- `label`: text shown in the UI before your query
-- `base`: URL, shell command, or file path template
-- `mode`: one of `url`, `shell`, or `file`
-- `group`: optional group name such as `sys` or `media`
-- `run_mode`: for shell actions, either `terminal` or `spawn`
-- `stay_open`: keep NimLaunch open after running the action
+- **`prefix`**: The text typed to trigger the shortcut.
+- **`label`**: The text shown in the UI before your query.
+- **`base`**: The URL, shell command, or file path template.
+- **`mode`**: The action type, which can be `url`, `shell`, or `file`.
+- **`group`**: An optional group name to attach this shortcut to (e.g., `sys` or `media`).
+- **`run_mode`**: For shell actions, specifies either `terminal` or `spawn`.
+- **`stay_open`**: If `true`, NimLaunch remains open after running the action.
 
 ## Prefix Shortcuts
 
-Prefix shortcuts are for direct command-style actions.
-
-Example:
+Prefix shortcuts are designed for direct command-style actions.
 
 ```toml
 [[shortcuts]]
@@ -53,18 +39,15 @@ base   = "https://en.wikipedia.org/wiki/Special:Search?search={query}"
 mode   = "url"
 ```
 
-Usage:
+Usage: `:w nim language`
 
-```text
-:w nim language
-```
+The `{query}` placeholder is replaced with the typed query text. 
 
-The `{query}` placeholder is replaced with the typed query text.
+> **Note on Shell Commands:** When `mode = "shell"`, NimLaunch automatically wraps `{query}` in shell-safe single quotes to prevent command injection. Do not wrap `{query}` in quotes in your configuration file.
 
 ## Shortcut Modes
 
 ### URL
-
 Opens a browser or URL handler.
 
 ```toml
@@ -76,8 +59,7 @@ mode   = "url"
 ```
 
 ### Shell
-
-Runs a command.
+Runs a command. Use `run_mode = "spawn"` when the command should run directly in the background without opening a terminal window.
 
 ```toml
 [[shortcuts]]
@@ -88,12 +70,8 @@ mode     = "shell"
 run_mode = "terminal"
 ```
 
-Use `run_mode = "spawn"` when the command should run directly without opening a
-terminal window.
-
 ### File
-
-Opens a file or path through the default handler.
+Opens a file or path through the default system handler.
 
 ```toml
 [[shortcuts]]
@@ -105,18 +83,15 @@ mode   = "file"
 
 ## Groups
 
-Groups are named shortcut collections. They are useful when you want one prefix
-to expose a menu of related actions.
+Groups act as named collections for shortcuts, allowing a single prefix to expose a menu of related actions. 
 
-Example:
+**Important:** Group definitions are completely optional. If you assign a shortcut to a group (e.g., `group = "scripts"`), NimLaunch automatically registers that group and uses the default `filter` behavior. 
 
-```toml
-[[groups]]
-name = "sys"
-query_mode = "filter"
-```
+The only time you must explicitly declare a `[[groups]]` block is when you want to change its `query_mode` from `"filter"` to `"pass"`.
 
-Then attach shortcuts to that group:
+### Example: Implicit Filter Group
+
+You can create a group simply by referencing it in your shortcuts:
 
 ```toml
 [[shortcuts]]
@@ -128,48 +103,25 @@ run_mode  = "spawn"
 stay_open = false
 ```
 
-Usage:
+Usage: `:sys lock`
 
-```text
-:sys lock
-```
+Because `sys` is used as a `group` in a shortcut, NimLaunch registers it automatically as a `filter` group.
 
 ## Group Query Modes
 
-Each group has a `query_mode`:
+A group can have one of two `query_mode` settings: `filter` or `pass`.
 
-- `filter`
-- `pass`
+### filter (Default)
 
-### filter
+NimLaunch uses the typed text to filter the items inside the group. This is the default behavior and does not require an explicit `[[groups]]` block. 
 
-The default. NimLaunch filters the items inside that group using the typed text.
-
-Example:
-
-```toml
-[[groups]]
-name = "sys"
-query_mode = "filter"
-```
-
-Typing `:sys re` narrows the group to actions such as `Reboot`.
+Typing `:sys re` narrows the group to actions matching "re" (such as "Reboot"). This is ideal when choosing between a set of fixed actions.
 
 ### pass
 
-The query is passed through to the selected shortcut instead of being used only
-as a filter. This is useful when a grouped action still needs the free-form
-query text.
+The `pass` mode forwards the raw query text to the selected shortcut instead of using it to filter the menu. This is useful when the grouped action requires free-form query input.
 
-With the current implementation, `pass` groups should only contain shortcuts
-that are meant to consume a query. If a shortcut does not include `{query}`,
-NimLaunch appends the typed text to the base command or URL.
-
-In practice, this makes `pass` a good fit for read-only inspection commands or
-search-style actions. Avoid mixing fixed actions like `Lock` or `Reboot` into
-the same group.
-
-Example:
+To use `pass` mode, you must explicitly declare the group in your configuration:
 
 ```toml
 [[groups]]
@@ -179,101 +131,21 @@ query_mode = "pass"
 [[shortcuts]]
 group = "svc"
 label = "systemctl status: "
-base = "systemctl status {query}"
-mode = "shell"
+base  = "systemctl status {query}"
+mode  = "shell"
 
 [[shortcuts]]
 group = "svc"
 label = "systemctl cat: "
-base = "systemctl cat {query}"
-mode = "shell"
-
-[[shortcuts]]
-group = "svc"
-label = "journalctl -u (this boot): "
-base = "journalctl -u {query} -b"
-mode = "shell"
+base  = "systemctl cat {query}"
+mode  = "shell"
 ```
 
-Usage:
+Usage: `:svc ssh`
 
-```text
-:svc ssh
-```
+Choosing `systemctl status: ` runs `systemctl status ssh`. This makes `pass` mode an excellent fit for read-only inspection commands or search-style actions where the input forms the arguments.
 
-Then choose one of the grouped actions:
-
-- `systemctl status: ` runs `systemctl status ssh`
-- `systemctl cat: ` runs `systemctl cat ssh`
-- `journalctl -u (this boot): ` runs `journalctl -u ssh -b`
-
-This is a good `pass` group because the query is not just filtering menu items.
-It is part of the command that will actually run.
-
-## Example: Screenshot Group
-
-```toml
-[[groups]]
-name = "ss"
-query_mode = "filter"
-
-[[shortcuts]]
-group = "ss"
-label = "Screenshot area -> clipboard"
-base = "grim -g \"$(slurp)\" - | wl-copy"
-mode = "shell"
-run_mode = "spawn"
-
-[[shortcuts]]
-group = "ss"
-label = "Screenshot area -> save"
-base = "mkdir -p ~/Pictures/Screenshots && grim -g \"$(slurp)\" ~/Pictures/Screenshots/$(date '+%Y-%m-%d_%H-%M-%S').png"
-mode = "shell"
-run_mode = "spawn"
-
-[[shortcuts]]
-group = "ss"
-label = "Full screenshot -> clipboard"
-base = "grim - | wl-copy"
-mode = "shell"
-run_mode = "spawn"
-
-[[shortcuts]]
-group = "ss"
-label = "Full screenshot -> save"
-base = "mkdir -p ~/Pictures/Screenshots && grim ~/Pictures/Screenshots/$(date '+%Y-%m-%d_%H-%M-%S').png"
-mode = "shell"
-run_mode = "spawn"
-```
-
-Usage:
-
-```text
-:ss full
-```
-
-This is a good `filter` group because you are choosing between a small set of
-related actions rather than passing arbitrary free-form query text through to a
-command.
-
-## Example: Web Shortcuts
-
-```toml
-[[shortcuts]]
-prefix = ":gh"
-label  = "Search GitHub: "
-base   = "https://github.com/search?q={query}"
-mode   = "url"
-
-[[shortcuts]]
-prefix = ":aw"
-label  = "Search Arch Wiki: "
-base   = "https://wiki.archlinux.org/index.php?search={query}"
-mode   = "url"
-```
-
-
-## Related Docs
+## Related Documentation
 
 - [Themes](themes.md)
 - [Configuration](configuration.md)

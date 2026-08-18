@@ -17,13 +17,14 @@ loads PNG/SVG icons through the SDL3 stack.
 ![NimLaunch screenshot](screenshots/NimLaunch-SDL2.gif)
 
 ## Features
-- Fuzzy app search with typo tolerance, recent-item bias, and persistent usage-based ranking.
-- Desktop entry actions for apps that expose secondary launch actions.
+- **Zero-Copy Fuzzy Matching:** Incredibly fast app search with typo tolerance, powered by `openArray[char]` zero-allocation string slicing.
+- **Asynchronous Icon Engine:** lock-free background threads decode PNG/SVG desktop icons, guaranteeing zero stuttering or disk I/O lag on the main UI thread.
+- **Binary State Caching:** Parses your `.desktop` entries and serializes them into a hyper-fast binary cache stream for instant booting.
 - Prefix commands: `:t`, `:c`, `:s`, `:r`, `!`, and custom groups.
+- Desktop entry actions for apps that expose secondary launch actions.
 - Vim mode (optional): `j/k` navigation, `/ : !` command bar, `gg/G`, `:q`, etc.
 - Themes with live preview, status/toast messages, and clock overlay.
-- `--dmenu` mode for scripts, and other stdin-driven workflows (with native `rofi`-style icon support).
-- Icons from `.desktop` files (PNG/SVG) with theme-aware lookup; can be disabled.
+- `--dmenu` mode for scripts, and other stdin-driven workflows (with native `rofi`-style `\0icon\x1f` support).
 - Window opacity setting (0.1–1.0)
 
 ## Documentation
@@ -102,7 +103,7 @@ nimble -y zigPortable  # portable + smaller Zig/clang release build (generic x86
 Use `nimble c` from project root if you need custom compiler flags:
 
 ```bash
-nimble c -d:release --opt:speed -o:./bin/nimlaunch src/nimlaunch.nim
+nimble c -d:release -d:lto --opt:speed --mm:orc --threads:on -o:./bin/nimlaunch src/nimlaunch.nim
 ```
 
 ```bash
@@ -135,34 +136,19 @@ still rasterizes glyphs in software.
 - Text looks wrong or too small: set `[font].fontname` to an installed font and
   size (e.g., `"Dejavu:size=16"`).
 - Wayland/Niri black padding or delayed repaint: build with
-  `nimble c -d:nimlaunchWindowDebug --nimcache:/tmp/nimlaunch_dbg_cache -o:/tmp/nimlaunch_dbg src/nimlaunch.nim`
+  `nimble c --threads:on --mm:orc -d:nimlaunchWindowDebug --nimcache:/tmp/nimlaunch_dbg_cache -o:/tmp/nimlaunch_dbg src/nimlaunch.nim`
   and run `/tmp/nimlaunch_dbg` to log window events + redraw timing.
 - Theme changes do not persist: verify `~/.config/nimlaunch/nimlaunch.toml`
   is writable.
 
 ## Command Line Flags
+- `--config`, `-c`: Override the default config file path (e.g. `./nimlaunch --config /path/to/alt.toml`). Auto-generates a clean config if the file doesn't exist.
 - `--version`, `-v`: Print the current NimLaunch version and exit.
 - `--list-themes`: Print all available themes and exit.
 - `--verbose`: Dump internal metrics (uptime, cache sizes, parsing stats) to standard error upon closing.
 - `--dmenu`: Turns NimLaunch into a generic selector for stdin-provided items.
-- `--dry-run`: Used with `--dmenu` to print the selected item and exit without executing it.
+- `--dry-run`: Prints the command or URL that would be executed and exits without running it. Highly useful for debugging shortcuts and `.desktop` files.
 
-## Dmenu Mode
-`--dmenu` turns NimLaunch into a generic selector for stdin-provided items.
-
-Example:
-
-```bash
-printf "one\ntwo\nthree\n" | ./nimlaunch --dmenu
-```
-
-Behavior:
-- `Enter` prints the selected line and exits with status `0`
-- `Esc` cancels and exits with status `1`
-- empty query preserves the original input order
-
-See [Dmenu Mode](docs/dmenu.md) for real use cases, wrapper patterns, and the
-included audio sink example.
 
 ## Quick Reference
 Core controls:
@@ -178,6 +164,7 @@ Core controls:
 | `:` / `!` | Normal | Open the bar primed for a prefix or `!` command |
 | Ctrl+U | Command bar | Clear the current query |
 | Ctrl+H / Backspace | Command bar | Delete one character (closes the bar when empty) |
+| Ctrl+V | Any | Paste text from clipboard |
 
 ### Built-in prefixes
 
@@ -195,8 +182,9 @@ Core controls:
 ## Configuration
 Config path: `~/.config/nimlaunch/nimlaunch.toml` (auto-generated on first run).
 
-The checked-in [example config](examples/nimlaunch.toml) is a public sample
-config.
+We provide an `examples/` directory containing powerful showcase integrations:
+- `examples/nimlaunch.toml` - A massive, feature-rich sample configuration file containing Calculator snippets, Window Switchers, AI groupings, and more.
+- `examples/scripts/` - Bash scripts demonstrating `--dmenu` and native Rofi icon injection.
 
 For the full config layout, field descriptions, theme handling, and generated
 default behavior, see [Configuration Guide](docs/configuration.md).

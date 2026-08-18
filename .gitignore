@@ -2,3 +2,4 @@ nimble.develop
 nimble.paths
 nimbledeps
 nimlaunch
+.agents/

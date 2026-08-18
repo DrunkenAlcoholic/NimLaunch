@@ -1,13 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-NIMLAUNCH_BIN="${NIMLAUNCH_BIN:-nimlaunch}"
+NIMLAUNCH="nimlaunch"
+if [[ -f "./bin/nimlaunch" ]]; then
+    NIMLAUNCH="./bin/nimlaunch"
+fi
+
 WPCTL_BIN="${WPCTL_BIN:-wpctl}"
 # PipeWire graph dump tool used to enumerate real Audio/Sink nodes.
 PIPEWIRE_DUMP_BIN="${PIPEWIRE_DUMP_BIN:-pw-dump}"
 
-if ! command -v "$NIMLAUNCH_BIN" >/dev/null 2>&1 && [[ ! -x "$NIMLAUNCH_BIN" ]]; then
-  printf 'audio-sink-picker: nimlaunch not found (set NIMLAUNCH_BIN)\n' >&2
+if ! command -v "$NIMLAUNCH" >/dev/null 2>&1 && [[ ! -x "$NIMLAUNCH" ]]; then
+  printf 'nimlaunch_audio: nimlaunch not found\n' >&2
   exit 127
 fi
 
@@ -84,7 +88,7 @@ done < <(sink_rows)
 ((${#SINK_IDS[@]} > 0)) || exit 1
 
 selection="$(
-  printf '%s\n' "${SINK_LABELS[@]}" | "$NIMLAUNCH_BIN" --dmenu
+  printf '%b\n' "${SINK_LABELS[@]/%/\\0icon\\x1faudio-speakers}" | "$NIMLAUNCH" --dmenu
 )" || exit $?
 [[ -n "$selection" ]] || exit 1
 

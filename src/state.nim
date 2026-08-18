@@ -170,6 +170,7 @@ var
   listThemesMode*: bool = false
   dryRunMode*: bool = false
   verboseMode*: bool = false
+  configOverridePath*: string = ""
 
 # ── Constants ───────────────────────────────────────────────────────────
 const

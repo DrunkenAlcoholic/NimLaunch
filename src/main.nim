@@ -5,7 +5,8 @@ import ./[state, app_core, gui, utils, settings, search, input, apps_cache, them
 const Version = "0.10.3"
 
 proc configureStartupMode() =
-  for i in 1 .. paramCount():
+  var i = 1
+  while i <= paramCount():
     let arg = paramStr(i)
     if arg == "--version" or arg == "-v":
       echo "NimLaunch v", Version
@@ -18,6 +19,13 @@ proc configureStartupMode() =
       verboseMode = true
     elif arg == "--dmenu":
       dmenuMode = true
+    elif arg == "--config" or arg == "-c":
+      if i < paramCount():
+        configOverridePath = paramStr(i + 1)
+        inc i
+      else:
+        quit "Error: --config requires a path argument."
+    inc i
 
 proc loadDmenuInput() =
   let raw = stdin.readAll()
