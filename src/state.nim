@@ -6,6 +6,7 @@ import std/tables
 type
   DmenuItem* = object
     label*: string
+    labelLower*: string
     iconName*: string
 
   Rgb* = object
@@ -15,13 +16,14 @@ type
   DesktopEntryAction* = object
     id*: string
     name*: string
+    nameLower*: string
     exec*: string
     icon*: string
     hasIcon*: bool
 
   ## A single launchable application parsed from a `.desktop` file.
   DesktopApp* = object
-    name*, exec*: string
+    name*, nameLower*, exec*: string
     icon*: string
     hasIcon*: bool
     desktopActions*: seq[DesktopEntryAction]

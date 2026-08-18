@@ -17,11 +17,11 @@ requires "nim >= 2.0"
 const
   EntryPoint = "src/nimlaunch.nim"
   OutBin = "-o:./bin/nimlaunch"
-  NativeReleaseFlags = "-d:release -d:danger --opt:speed --passC:'-march=native -mtune=native -ffunction-sections -fdata-sections' --passL:'-Wl,--gc-sections -s'"
-  NativePortableFlags = "-d:release --opt:size --passC:'-march=x86-64 -mtune=generic -ffunction-sections -fdata-sections' --passL:'-Wl,--gc-sections -s'"
-  NativeDebugFlags = "-d:debug --debuginfo --lineTrace:on --stackTrace:on --opt:none"
-  ZigReleaseFlags = "-d:release -d:danger --opt:speed --cc:clang --clang.exe='./zigcc' --clang.linkerexe='./zigcc' --passC:'-target x86_64-linux-gnu -mcpu=native -ffunction-sections -fdata-sections' --passL:'-target x86_64-linux-gnu -mcpu=native -Wl,--gc-sections -s'"
-  ZigPortableFlags = "-d:release --opt:size --cc:clang --clang.exe='./zigcc' --clang.linkerexe='./zigcc' --passC:'-target x86_64-linux-gnu -mcpu=x86_64 -ffunction-sections -fdata-sections' --passL:'-target x86_64-linux-gnu -mcpu=x86_64 -Wl,--gc-sections -s'"
+  NativeReleaseFlags = "-d:release -d:danger -d:lto --mm:orc --threads:on --opt:speed --passC:'-march=native -mtune=native -ffunction-sections -fdata-sections' --passL:'-Wl,--gc-sections -s'"
+  NativePortableFlags = "-d:release -d:lto --mm:orc --threads:on --opt:size --passC:'-march=x86-64 -mtune=generic -ffunction-sections -fdata-sections' --passL:'-Wl,--gc-sections -s'"
+  NativeDebugFlags = "-d:debug --mm:orc --threads:on --debuginfo --lineTrace:on --stackTrace:on --opt:none"
+  ZigReleaseFlags = "-d:release -d:danger -d:lto --mm:orc --threads:on --opt:speed --cc:clang --clang.exe='./zigcc' --clang.linkerexe='./zigcc' --passC:'-target x86_64-linux-gnu -mcpu=native -ffunction-sections -fdata-sections' --passL:'-target x86_64-linux-gnu -mcpu=native -Wl,--gc-sections -s'"
+  ZigPortableFlags = "-d:release -d:lto --mm:orc --threads:on --opt:size --cc:clang --clang.exe='./zigcc' --clang.linkerexe='./zigcc' --passC:'-target x86_64-linux-gnu -mcpu=x86_64 -ffunction-sections -fdata-sections' --passL:'-target x86_64-linux-gnu -mcpu=x86_64 -Wl,--gc-sections -s'"
   ZigDebugFlags = "-d:debug --debuginfo --lineTrace:on --stackTrace:on --opt:none --cc:clang --clang.exe='./zigcc' --clang.linkerexe='./zigcc'"
 
 proc runBuild(flags: string) =

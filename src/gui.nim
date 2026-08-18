@@ -1,7 +1,7 @@
 ## gui.nim — SDL3/TTF renderer for NimLaunch2
 ## Provides a thin API mirroring the original GUI (updateGuiColors, redrawWindow, etc.).
 
-import std/[strutils, times, tables, streams, osproc, math]
+import std/[strutils, times, tables, streams, osproc, math, os]
 import sdl3
 import sdl3_ttf
 import ./[state, sdl3_image, icon_resolver]
@@ -57,6 +57,40 @@ type
     windowRaised: bool
 
 var st: BackendState
+
+type
+  IconRequest = object
+    cacheKey: string
+    iconName: string
+    size: int
+
+  IconResponse = object
+    cacheKey: string
+    surface: ptr Surface
+
+var
+  iconReqChan: Channel[IconRequest]
+  iconResChan: Channel[IconResponse]
+  iconThread: Thread[void]
+  iconThreadRunning: bool
+  iconPendingSet: Table[string, bool]
+
+proc iconWorker() {.thread.} =
+  while iconThreadRunning:
+    let (dataAvail, req) = iconReqChan.tryRecv()
+    if dataAvail:
+      if req.cacheKey == "SHUTDOWN":
+        break
+      let path = resolveIconPath(req.iconName, req.size)
+      var surf: ptr Surface = nil
+      if path.len > 0:
+        surf = loadIconSurface(path, req.size)
+      iconResChan.send(IconResponse(cacheKey: req.cacheKey, surface: surf))
+      var evt = Event(`type`: EVENT_USER)
+      discard pushEvent(evt)
+    else:
+      # Sleep briefly to avoid high CPU loop
+      sleep(5)
 
 proc getIconCacheSize*(): int =
   if st != nil: st.iconCache.len else: 0
@@ -553,7 +587,19 @@ proc initGui*() =
 
   configureTextInput()
 
+  iconReqChan.open()
+  iconResChan.open()
+  iconThreadRunning = true
+  iconPendingSet = initTable[string, bool]()
+  createThread(iconThread, iconWorker)
+
 proc shutdownGui*() =
+  if iconThreadRunning:
+    iconThreadRunning = false
+    iconReqChan.send(IconRequest(cacheKey: "SHUTDOWN"))
+    joinThread(iconThread)
+    iconReqChan.close()
+    iconResChan.close()
   destroyState()
 
 proc updateGuiColors*() =
@@ -605,28 +651,35 @@ proc measureText(font: Font; text: string): (int, int) =
   discard getStringSize(font, text.cstring, text.len.csize_t, w, h)
   (w.int, h.int)
 
-proc loadIconTexture(path: string; requestedSize: int): IconTexture =
-  ## Load an image from disk into an SDL_Texture using SDL3_image.
-  if path.len == 0:
-    return nil
 
-  let lower = path.toLowerAscii
-  let tex =
-    if lower.endsWith(".svg"):
-      loadSizedSvgTexture(st.renderer, path, requestedSize, requestedSize)
-    else:
-      loadTexture(st.renderer, path.cstring)
-  if tex.isNil:
-    return nil
-  discard setTextureScaleMode(tex, SCALEMODE_NEAREST)
 
-  var wf, hf: cfloat
-  discard getTextureSize(tex, wf, hf)
-
-  new(result)
-  result.tex = tex
-  result.w = int(round(wf.float))
-  result.h = int(round(hf.float))
+proc pumpIconResults*() =
+  if st.isNil: return
+  while true:
+    let (dataAvail, res) = iconResChan.tryRecv()
+    if not dataAvail: break
+    
+    iconPendingSet.del(res.cacheKey)
+    if res.surface.isNil:
+      st.iconCache[res.cacheKey] = nil
+      continue
+      
+    let tex = createTextureFromSurface(st.renderer, res.surface)
+    destroySurface(res.surface)
+    
+    if tex.isNil:
+      st.iconCache[res.cacheKey] = nil
+      continue
+      
+    discard setTextureScaleMode(tex, SCALEMODE_NEAREST)
+    var wf, hf: cfloat
+    discard getTextureSize(tex, wf, hf)
+    
+    st.iconCache[res.cacheKey] = IconTexture(
+      tex: tex,
+      w: int(round(wf.float)),
+      h: int(round(hf.float))
+    )
 
 proc getIconTexture(iconName: string; size: int): IconTexture =
   ## Get (or lazily load) an icon texture for a given iconName.
@@ -637,22 +690,11 @@ proc getIconTexture(iconName: string; size: int): IconTexture =
   if st.iconCache.hasKey(cacheKey):
     return st.iconCache[cacheKey]
 
-  var path = ""
-  if st.iconPathCache.hasKey(cacheKey):
-    path = st.iconPathCache[cacheKey]
-  else:
-    path = resolveIconPath(iconName, size)
-    st.iconPathCache[cacheKey] = path
+  if not iconPendingSet.hasKey(cacheKey):
+    iconPendingSet[cacheKey] = true
+    iconReqChan.send(IconRequest(cacheKey: cacheKey, iconName: iconName, size: size))
 
-  if path.len == 0:
-    return nil
-
-  let tex = loadIconTexture(path, size)
-  st.iconCache[cacheKey] = tex
-  if tex.isNil:
-    return nil
-
-  result = tex
+  return nil
 
 proc drawIconAt(slotX, y: int; slotSize: int; iconName: string): int =
   ## Draw icon/fallback inside slot and return next text X position.
@@ -890,6 +932,7 @@ proc presentFrame() =
 
 proc redrawWindow*() =
   if st.isNil: return
+  pumpIconResults()
 
   when WindowDebug:
     let wm = windowMetrics()

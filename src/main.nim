@@ -36,7 +36,7 @@ proc loadDmenuInput() =
         let prefix = "icon\x1f"
         if remainder.startsWith(prefix):
           iconName = remainder[prefix.len .. ^1]
-      dmenuItems.add DmenuItem(label: label, iconName: iconName)
+      dmenuItems.add DmenuItem(label: label, labelLower: label.toLowerAscii(), iconName: iconName)
 
 proc processSearchDebounce(): bool =
   ## Debounce wake-up: if we're in s: search, rebuild after idle.

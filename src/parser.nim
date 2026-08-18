@@ -254,6 +254,7 @@ proc parseDesktopFile*(path: string): Option[DesktopApp] =
       desktopActions.add DesktopEntryAction(
         id: actionId,
         name: actionName,
+        nameLower: actionName.toLowerAscii(),
         exec: actionExec,
         icon: actionIcon,
         hasIcon: actionIcon.len > 0
@@ -261,6 +262,7 @@ proc parseDesktopFile*(path: string): Option[DesktopApp] =
 
     some(DesktopApp(
       name: name,
+      nameLower: name.toLowerAscii(),
       exec: exec,
       icon: icon,
       hasIcon: icon.len > 0,

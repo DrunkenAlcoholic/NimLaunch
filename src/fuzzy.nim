@@ -47,7 +47,7 @@ proc isWordBoundary*(lt: string; idx: int): bool =
   let c = lt[idx-1]
   c == ' ' or c == '-' or c == '_' or c == '.' or c == '/'
 
-proc withinOneEdit(a, b: string): bool =
+proc withinOneEdit(a: string, b: openArray[char]): bool =
   let m = a.len; let n = b.len
   if abs(m - n) > 1: return false
   var i = 0; var j = 0; var edits = 0
@@ -61,24 +61,22 @@ proc withinOneEdit(a, b: string): bool =
   edits += (m - i) + (n - j)
   edits <= 1
 
-proc withinOneTransposition(a, b: string): bool =
+proc withinOneTransposition(a: string, b: openArray[char]): bool =
   if a.len != b.len or a.len < 2: return false
   var k = 0
   while k < a.len and a[k] == b[k]: inc k
   if k >= a.len - 1: return false
   if not (a[k] == b[k+1] and a[k+1] == b[k]): return false
   let tailStart = k + 2
-  result = if tailStart < a.len:
-    a[tailStart .. ^1] == b[tailStart .. ^1]
-  else:
-    true
+  if tailStart < a.len:
+    for i in tailStart ..< a.len:
+      if a[i] != b[i]: return false
+  return true
 
-proc scoreMatch*(q, t, fullPath, home: string): int =
+proc scoreMatch*(q, lq, t, lt, fullPath, home: string): int =
   ## Heuristic score for matching q against t (higher is better).
   ## Typo-friendly: 1 edit (ins/del/sub) or one adjacent transposition.
   if q.len == 0: return -1_000_000
-  let lq = q.toLowerAscii
-  let lt = t.toLowerAscii
   let pos = lt.find(lq)
 
   var s = -1_000_000
@@ -108,8 +106,7 @@ proc scoreMatch*(q, t, fullPath, home: string): int =
         var start = 0
         let maxStart = lt.len - L
         while start <= maxStart:
-          let seg = lt[start ..< start + L]
-          if withinOneEdit(lq, seg) or withinOneTransposition(lq, seg):
+          if withinOneEdit(lq, toOpenArray(lt, start, start + L - 1)) or withinOneTransposition(lq, toOpenArray(lt, start, start + L - 1)):
             typoHit = true
             var base = 7700
             if start == 0: base = 7950

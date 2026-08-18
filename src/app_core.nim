@@ -338,8 +338,8 @@ proc pathDepth(path: string): int =
 
 proc scoreSearchCandidate(query: string; queryLower: string; fileName: string;
                           path: string; homeDir: string; homeDepth: int): int =
-  var score = scoreMatch(query, fileName, path, homeDir)
   let fileLower = fileName.toLowerAscii
+  var score = scoreMatch(query, queryLower, fileName, fileLower, path, homeDir)
   if fileLower == queryLower:
     score += 12_000
   elif fileLower.startsWith(queryLower):
@@ -422,8 +422,9 @@ proc buildDmenuActions(rest: string): seq[Action] =
   else:
     var top = initHeapQueue[(int, int)]()
     let limit = max(250, config.maxVisibleItems * 8)
+    let queryLower = query.toLowerAscii
     for i, item in dmenuItems:
-      let s = scoreMatch(query, item.label, item.label, "")
+      let s = scoreMatch(query, queryLower, item.label, item.labelLower, item.label, "")
       if s > -1_000_000:
         push(top, (s, i))
         if top.len > limit:
@@ -477,8 +478,9 @@ proc buildDefaultActions(rest: string; defaultIndex: var int): seq[Action] =
   else:
     var top = initHeapQueue[(int, int)]()
     let limit = max(DefaultAppSearchCap, config.maxVisibleItems * 8)
+    let queryLower = rest.toLowerAscii
     for i, app in allApps:
-      let s = scoreMatch(rest, app.name, app.name, "")
+      let s = scoreMatch(rest, queryLower, app.name, app.nameLower, app.name, "")
       if s > -1_000_000:
         push(top, (s + recentBoost(app.name) + usageBoost(app.name), i))
         if top.len > limit: discard pop(top)
@@ -488,13 +490,12 @@ proc buildDefaultActions(rest: string; defaultIndex: var int): seq[Action] =
       result = cmp(b[0], a[0])
       if result == 0: result = cmpIgnoreCase(allApps[a[1]].name, allApps[b[1]].name)
     )
-    let queryLower = rest.toLowerAscii
     for item in ranked:
       let app = allApps[item[1]]
       let iconName = if config.showIcons: pickIcon(app) else: ""
       result.add Action(kind: akApp, label: app.name, exec: app.exec,
           appData: app, iconName: iconName)
-      let appLower = app.name.toLowerAscii
+      let appLower = app.nameLower
       if app.desktopActions.len > 0 and (appLower == queryLower or
           appLower.startsWith(queryLower)):
         addDesktopActionRows(result, app)

@@ -8,10 +8,10 @@ const
                         "breeze", "breeze-dark", "hicolor"]
 
 var
-  iconSearchPathsReady = false
-  iconThemeDirsCache: seq[string] = @[]
-  iconPixmapRootsCache: seq[string] = @[]
-  preferredIconThemesCache: seq[string] = @[]
+  iconSearchPathsReady {.threadvar.}: bool
+  iconThemeDirsCache {.threadvar.}: seq[string]
+  iconPixmapRootsCache {.threadvar.}: seq[string]
+  preferredIconThemesCache {.threadvar.}: seq[string]
 
 # -------------------
 # Icon resolution
