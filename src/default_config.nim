@@ -83,37 +83,6 @@ mode   = "url"
 # Use `:r` (or `!`) to execute shell commands directly without a custom shortcut.
 
 [[shortcuts]]
-prefix    = "="
-label     = "Calculate: "
-base      = "res=$(echo '{query}' | bc -l); echo \"$res\" | wl-copy; notify-send 'Calculator' \"Result: $res\" -i accessories-calculator"
-mode      = "shell"
-run_mode  = "spawn"
-stay_open = false
-
-[[shortcuts]]
-group     = "scripts"
-label     = "Window Switcher"
-base      = "bash ~/.config/nimlaunch/scripts/nimlaunch_windows.sh"
-mode      = "shell"
-run_mode  = "spawn"
-stay_open = false
-
-[[shortcuts]]
-group     = "scripts"
-label     = "Clipboard Manager"
-base      = "bash ~/.config/nimlaunch/scripts/nimlaunch_cliphist.sh"
-mode      = "shell"
-run_mode  = "spawn"
-stay_open = false
-
-[[shortcuts]]
-group     = "scripts"
-label     = "WiFi Network Manager"
-base      = "bash ~/.config/nimlaunch/scripts/nimlaunch_wifi.sh"
-mode      = "shell"
-run_mode  = "spawn"
-stay_open = false
-[[shortcuts]]
 group     = "sys"
 label     = "Lock"
 base      = "loginctl lock-session"

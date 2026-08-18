@@ -1,0 +1,51 @@
+# ==========================================
+# NimLaunch Showcase Snippets
+# ==========================================
+# Copy and paste any of these blocks into your `~/.config/nimlaunch/config.toml`
+# to enable advanced features. 
+# Make sure you have the required dependencies installed (e.g., jq, bc, cliphist, nmcli)
+# and copy the `examples/scripts/` folder to `~/.config/nimlaunch/scripts/`.
+
+# ------------------------------------------
+# 1. Inline Calculator (Requires: `bc`, `wl-copy`)
+# ------------------------------------------
+[[shortcuts]]
+prefix    = "="
+label     = "Calculate: "
+base      = "res=$(echo '{query}' | bc -l); echo \"$res\" | wl-copy; notify-send 'Calculator' \"Result: $res\" -i accessories-calculator"
+mode      = "shell"
+run_mode  = "spawn"
+stay_open = false
+
+# ------------------------------------------
+# 2. Window Switcher (Requires: `hyprctl`, `jq`)
+# ------------------------------------------
+[[shortcuts]]
+group     = "scripts"
+label     = "Window Switcher"
+base      = "bash ~/.config/nimlaunch/scripts/nimlaunch_windows.sh"
+mode      = "shell"
+run_mode  = "spawn"
+stay_open = false
+
+# ------------------------------------------
+# 3. Clipboard Manager (Requires: `cliphist`, `wl-copy`, `awk`)
+# ------------------------------------------
+[[shortcuts]]
+group     = "scripts"
+label     = "Clipboard Manager"
+base      = "bash ~/.config/nimlaunch/scripts/nimlaunch_cliphist.sh"
+mode      = "shell"
+run_mode  = "spawn"
+stay_open = false
+
+# ------------------------------------------
+# 4. WiFi Network Manager (Requires: `nmcli`, `awk`)
+# ------------------------------------------
+[[shortcuts]]
+group     = "scripts"
+label     = "WiFi Network Manager"
+base      = "bash ~/.config/nimlaunch/scripts/nimlaunch_wifi.sh"
+mode      = "shell"
+run_mode  = "spawn"
+stay_open = false
