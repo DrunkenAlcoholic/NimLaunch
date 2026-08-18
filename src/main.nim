@@ -109,6 +109,8 @@ proc main*() =
       of EVENT_TEXT_EDITING_CANDIDATES:
         if handleTextEditingCandidates(ev):
           gui.redrawWindow()
+      of EVENT_USER:
+        gui.redrawWindow()
       else:
         discard
 
