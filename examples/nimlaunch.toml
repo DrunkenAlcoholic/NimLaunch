@@ -212,6 +212,14 @@ stay_open = false
 
 [[shortcuts]]
 group     = "scripts"
+label     = "Steam Games"
+base      = "bash ~/.config/nimlaunch/scripts/nimlaunch_steam.sh"
+mode      = "shell"
+run_mode  = "spawn"
+stay_open = false
+
+[[shortcuts]]
+group     = "scripts"
 label     = "Clipboard Manager (Hyprland)"
 base      = "bash ~/.config/nimlaunch/scripts/nimlaunch_cliphist.sh"
 mode      = "shell"

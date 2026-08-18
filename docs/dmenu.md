@@ -69,6 +69,11 @@ The repository includes several practical examples in the `examples/scripts/` di
    - A clean, icon-supported exit menu (Lock, Suspend, Logout, Reboot, Shutdown).
    - Safely triggers system state changes using `systemctl` or `loginctl`.
 
+7. **[nimlaunch_steam.sh](../examples/scripts/nimlaunch_steam.sh)**
+   - Dynamically scans `libraryfolders.vdf` across all mounted Steam libraries.
+   - Filters out non-game runtimes (Proton, Steamworks) and lists playable games.
+   - Launches the selected game via the native `steam://rungameid/` protocol.
+
 ## Building Custom Scripts
 
 You can build your own scripts that pipe content into NimLaunch. The standard wrapper pattern involves generating a list, piping it into NimLaunch, and processing the result.
