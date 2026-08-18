@@ -109,3 +109,22 @@ The checked-in [example config](../examples/nimlaunch.toml) provides a richer pu
 - [Themes](themes.md)
 - [Groups and Shortcuts](groups-and-shortcuts.md)
 - [Dmenu Mode](dmenu.md)
+
+## Advanced: Start Menu Mode
+
+NimLaunch can be repurposed as a corner-pinned Start Menu for your panel (e.g., Waybar, Polybar, or KDE Panel).
+
+Create a dedicated configuration file (e.g., `~/.config/nimlaunch/startmenu.toml`) and disable centering:
+
+```toml
+[window]
+center = false
+position_x = 15
+position_y = 45  # Adjust based on your panel height and screen resolution
+```
+
+**Wayland Users:** By design, Wayland compositors forbid standard applications from dictating their absolute window positions. If your compositor ignores the coordinates and continues to center the window, you can force NimLaunch to run through XWayland (which allows absolute positioning) by prefixing the launch command:
+
+```bash
+SDL_VIDEODRIVER=x11 nimlaunch --config ~/.config/nimlaunch/startmenu.toml
+```
