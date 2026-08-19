@@ -27,7 +27,7 @@ proc loadIconSurface*(file: string; size: int): ptr Surface =
     let io = ioFromFile(file.cstring, "rb")
     if io.isNil:
       return nil
+    defer: discard closeIO(io)
     result = loadSizedSvg(io, size.cint, size.cint)
-    discard closeIO(io)
   else:
     result = load(file.cstring)

@@ -5,13 +5,13 @@ import ./state
 
 proc recentBoost*(name: string): int =
   ## Small score bonus for recently used apps (first is strongest).
-  let idx = recentApps.find(name)
+  let idx = ctx.recentApps.find(name)
   if idx >= 0: return max(0, 200 - idx * 40)
   0
 
 proc usageBoost*(name: string): int =
   ## Small persistent score layer based on launch frequency and recency.
-  let stats = appUsage.getOrDefault(name)
+  let stats = ctx.appUsage.getOrDefault(name)
   if stats.launchCount <= 0 and stats.lastLaunched <= 0:
     return 0
   let frequency = min(stats.launchCount, 20) * 30
@@ -27,14 +27,12 @@ proc usageBoost*(name: string): int =
 proc subseqPositions*(q, t: string): seq[int] =
   ## Case-insensitive subsequence positions of q within t (for highlight).
   if q.len == 0: return @[]
-  let lq = q.toLowerAscii
-  let lt = t.toLowerAscii
   var qi = 0
-  for i in 0 ..< lt.len:
-    if qi < lq.len and lt[i] == lq[qi]:
+  for i in 0 ..< t.len:
+    if qi < q.len and toLowerAscii(t[i]) == toLowerAscii(q[qi]):
       result.add i
       inc qi
-      if qi == lq.len: return
+      if qi == q.len: return
   result.setLen(0)
 
 proc subseqSpans*(q, t: string): seq[(int, int)] =

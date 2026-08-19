@@ -14,10 +14,17 @@ when not declared(setFontStyle):
       importc: "TTF_SetFontStyle", dynlib: TtfLibName.}
 
 type
-  IconTexture = ref object
+  IconTextureObj = object
     tex: Texture
     w, h: int
+  IconTexture = ref IconTextureObj
 
+proc `=destroy`(x: var IconTextureObj) =
+  if x.tex != nil:
+    destroyTexture(x.tex)
+    x.tex = nil
+
+type
   UiMetrics = object
     scale: float32
     displayID: DisplayID
@@ -40,7 +47,7 @@ type
     commandBarBottomGapPx: int
     overlayStackGapPx: int
 
-  BackendState = ref object
+  BackendStateObj = object
     window: Window
     renderer: Renderer
     font: Font
@@ -55,6 +62,20 @@ type
     textCacheQueue: seq[string]
     windowShown: bool
     windowRaised: bool
+  BackendState = ref BackendStateObj
+
+proc `=destroy`(x: var BackendStateObj) =
+  for _, entry in x.textCache:
+    if entry.tex != nil: destroyTexture(entry.tex)
+  x.textCache.clear()
+  x.iconCache.clear() # Triggers IconTextureObj destructors automatically
+  if x.font != nil: closeFont(x.font)
+  if x.fontBold != nil: closeFont(x.fontBold)
+  if x.fontOverlay != nil: closeFont(x.fontOverlay)
+  if x.renderer != nil: destroyRenderer(x.renderer)
+  if x.window != nil: destroyWindow(x.window)
+  x.window = nil
+  x.renderer = nil
 
 var st: BackendState
 
@@ -148,7 +169,7 @@ proc roundScaled(base: int; scale: float32; minValue = 0): int =
     result = minValue
 
 proc logicalWindowHeight(): int =
-  40 + config.maxVisibleItems * config.lineHeight
+  40 + ctx.config.maxVisibleItems * ctx.config.lineHeight
 
 proc currentVideoDriverName(): string =
   let raw = getCurrentVideoDriver()
@@ -163,9 +184,9 @@ proc ownsWindowID*(windowID: WindowID): bool =
   not st.isNil and not st.window.isNil and windowID == getWindowID(st.window)
 
 proc deriveFontSizeFromConfig(): int =
-  ## Parse config.fontName looking for ":size=N" or "size=N".
+  ## Parse ctx.config.fontName looking for ":size=N" or "size=N".
   const key = "size="
-  let lower = config.fontName.toLowerAscii
+  let lower = ctx.config.fontName.toLowerAscii
   let idx = lower.find(key)
   if idx >= 0:
     var j = idx + key.len
@@ -260,7 +281,7 @@ proc computeAlignedWindowY(winHeight: int; displayIndex: int): cint =
   if displayH <= 0:
     return WINDOWPOS_CENTERED.cint
 
-  let align = config.verticalAlign.toLowerAscii
+  let align = ctx.config.verticalAlign.toLowerAscii
   var centerY: int
   case align
   of "top":
@@ -302,20 +323,6 @@ proc configureTextInput() =
 proc destroyState() =
   if st.isNil: return
   discard stopTextInput(st.window)
-  for _, entry in st.textCache:
-    if not entry.tex.isNil: destroyTexture(entry.tex)
-  st.textCache.clear()
-  st.textCacheQueue.setLen(0)
-  for _, tex in st.iconCache:
-    if not tex.isNil and not tex.tex.isNil:
-      destroyTexture(tex.tex)
-  st.iconCache.clear()
-  st.iconPathCache.clear()
-  if not st.font.isNil: closeFont(st.font)
-  if not st.fontBold.isNil: closeFont(st.fontBold)
-  if not st.fontOverlay.isNil: closeFont(st.fontOverlay)
-  if not st.renderer.isNil: destroyRenderer(st.renderer)
-  if not st.window.isNil: destroyWindow(st.window)
   st = nil
   sdl3_ttf.quit()
   sdl3.quit()
@@ -362,8 +369,8 @@ proc computeUiMetrics(window: Window; renderer: Renderer): UiMetrics =
   result.logicalWinH = logicalH
   result.drawW = drawWi
   result.drawH = drawHi
-  result.lineHeightPx = roundScaled(config.lineHeight, scale, minValue = 1)
-  result.borderWidthPx = roundScaled(config.borderWidth, scale)
+  result.lineHeightPx = roundScaled(ctx.config.lineHeight, scale, minValue = 1)
+  result.borderWidthPx = roundScaled(ctx.config.borderWidth, scale)
   result.outerMarginPx = roundScaled(BaseOuterMargin, scale)
   result.rowGapPx = roundScaled(BaseRowGap, scale)
   result.rowBgOffsetPx = roundScaled(BaseRowBgOffset, scale)
@@ -382,11 +389,7 @@ proc computeUiMetrics(window: Window; renderer: Renderer): UiMetrics =
     result.iconSlotPx = 1
 
 proc destroyIconTextures() =
-  if st.isNil:
-    return
-  for _, tex in st.iconCache:
-    if not tex.isNil and not tex.tex.isNil:
-      destroyTexture(tex.tex)
+  if st.isNil: return
   st.iconCache.clear()
   st.iconPathCache.clear()
 
@@ -408,7 +411,7 @@ proc updateTextInputArea*() =
   let m = st.metrics
   var rect: Rect
   let leftInset = roundScaled(BasePromptInset, m.scale)
-  if config.vimMode and vim.active:
+  if ctx.config.vimMode and ctx.vim.active:
     let barHeight = m.lineHeightPx + m.commandBarExtraHeightPx
     let barTop = max(0, m.logicalWinH - barHeight - m.commandBarBottomGapPx)
     rect.x = leftInset.cint
@@ -449,7 +452,7 @@ proc refreshMetrics*(force = false): bool =
     destroyIconTextures()
   if fontScaleChanged or metricsChanged or displayChanged:
     for _, entry in st.textCache:
-      if not entry.tex.isNil: destroyTexture(entry.tex)
+      if entry.tex != nil: destroyTexture(entry.tex)
     st.textCache.clear()
     st.textCacheQueue.setLen(0)
   updateTextInputArea()
@@ -473,19 +476,19 @@ proc refreshMetrics*(force = false): bool =
 proc currentMetrics(): UiMetrics =
   if st.isNil:
     result.scale = 1.0
-    result.logicalWinW = config.winWidth
+    result.logicalWinW = ctx.config.winWidth
     result.logicalWinH = logicalWindowHeight()
     result.drawW = result.logicalWinW
     result.drawH = result.logicalWinH
-    result.lineHeightPx = config.lineHeight
-    result.borderWidthPx = config.borderWidth
+    result.lineHeightPx = ctx.config.lineHeight
+    result.borderWidthPx = ctx.config.borderWidth
     result.outerMarginPx = BaseOuterMargin
     result.rowGapPx = BaseRowGap
     result.rowBgOffsetPx = BaseRowBgOffset
     result.rowTextInsetPx = BaseRowTextInset
     result.iconInsetPx = BaseIconInset
     result.iconTextGapPx = BaseIconTextGap
-    result.iconSlotPx = max(BaseIconMinSize, min(config.lineHeight - BaseIconSizeInset,
+    result.iconSlotPx = max(BaseIconMinSize, min(ctx.config.lineHeight - BaseIconSizeInset,
         BaseIconMaxSize))
     result.overlayMarginPx = BaseOverlayMargin
     result.commandBarExtraHeightPx = BaseCommandBarExtraHeight
@@ -514,7 +517,7 @@ proc notifyThemeChanged*(name: string) =
   lastThemeSwitchMs = nowMs()
   if not st.isNil:
     for _, entry in st.textCache:
-      if not entry.tex.isNil: destroyTexture(entry.tex)
+      if entry.tex != nil: destroyTexture(entry.tex)
     st.textCache.clear()
     st.textCacheQueue.setLen(0)
 
@@ -528,7 +531,7 @@ proc notifyStatus*(text: string; durationMs = 800) =
 proc initGui*() =
   ensureSdl()
 
-  let fontPath = resolveFontPath(config.fontName)
+  let fontPath = resolveFontPath(ctx.config.fontName)
 
   ## Keep the X11-specific taskbar hint scoped to X11 so Wayland compositors
   ## only see the SDL3 window-role properties below.
@@ -542,12 +545,12 @@ proc initGui*() =
       destroyProperties(props)
   discard setStringProperty(props, PROP_WINDOW_CREATE_TITLE_STRING, "NimLaunch SDL3")
   discard setNumberProperty(props, PROP_WINDOW_CREATE_X_NUMBER,
-      if config.centerWindow: computeAlignedWindowX(config.winWidth, config.displayIndex).int64
-      else: config.positionX.int64)
+      if ctx.config.centerWindow: computeAlignedWindowX(ctx.config.winWidth, ctx.config.displayIndex).int64
+      else: ctx.config.positionX.int64)
   discard setNumberProperty(props, PROP_WINDOW_CREATE_Y_NUMBER,
-      if config.centerWindow: computeAlignedWindowY(logicalWindowHeight(),
-          config.displayIndex).int64 else: config.positionY.int64)
-  discard setNumberProperty(props, PROP_WINDOW_CREATE_WIDTH_NUMBER, config.winWidth.int64)
+      if ctx.config.centerWindow: computeAlignedWindowY(logicalWindowHeight(),
+          ctx.config.displayIndex).int64 else: ctx.config.positionY.int64)
+  discard setNumberProperty(props, PROP_WINDOW_CREATE_WIDTH_NUMBER, ctx.config.winWidth.int64)
   discard setNumberProperty(props, PROP_WINDOW_CREATE_HEIGHT_NUMBER, logicalWindowHeight().int64)
   discard setBooleanProperty(props, PROP_WINDOW_CREATE_HIDDEN_BOOLEAN, true)
   discard setBooleanProperty(props, PROP_WINDOW_CREATE_BORDERLESS_BOOLEAN, true)
@@ -581,8 +584,8 @@ proc initGui*() =
   discard refreshMetrics(force = true)
 
   when declared(setWindowOpacity):
-    let opac = if config.opacity < 0.1: 0.1 elif config.opacity >
-        1.0: 1.0 else: config.opacity
+    let opac = if ctx.config.opacity < 0.1: 0.1 elif ctx.config.opacity >
+        1.0: 1.0 else: ctx.config.opacity
     discard setWindowOpacity(st.window, opac.cfloat)
 
   configureTextInput()
@@ -603,12 +606,12 @@ proc shutdownGui*() =
   destroyState()
 
 proc updateGuiColors*() =
-  colBg = rgbToColor(config.bgColor)
-  colFg = rgbToColor(config.fgColor)
-  colHighlightBg = rgbToColor(config.highlightBgColor)
-  colHighlightFg = rgbToColor(config.highlightFgColor)
-  colMatch = rgbToColor(config.matchFgColor)
-  colBorder = rgbToColor(config.borderColor)
+  colBg = rgbToColor(ctx.config.bgColor)
+  colFg = rgbToColor(ctx.config.fgColor)
+  colHighlightBg = rgbToColor(ctx.config.highlightBgColor)
+  colHighlightFg = rgbToColor(ctx.config.highlightFgColor)
+  colMatch = rgbToColor(ctx.config.matchFgColor)
+  colBorder = rgbToColor(ctx.config.borderColor)
 
 # -------------------
 # Text rendering helpers
@@ -744,7 +747,7 @@ proc drawText(x, y: int; text: string; spans: seq[(int, int)] = @[];
   ## Icon slot (adaptive size)
   let iconSlot = m.iconSlotPx
   let slotX = x + m.iconInsetPx
-  if config.showIcons and iconName.len > 0:
+  if ctx.config.showIcons and iconName.len > 0:
     textX = drawIconAt(slotX, y, iconSlot, iconName)
 
   ## Base text
@@ -821,8 +824,8 @@ proc drawClock(topRight = false) =
 proc drawPromptAndInput(y: var int) =
   let m = currentMetrics()
   # Prompt + input line (hidden in Vim mode to mirror original)
-  if not config.vimMode:
-    let promptLine = config.prompt & inputText & config.cursor
+  if not ctx.config.vimMode:
+    let promptLine = ctx.config.prompt & ctx.inputText & ctx.config.cursor
     drawText(roundScaled(BasePromptInset, m.scale), y, promptLine)
     y += m.lineHeightPx + m.rowGapPx
   else:
@@ -831,30 +834,30 @@ proc drawPromptAndInput(y: var int) =
 proc drawVisibleRows(startY: int): int =
   let m = currentMetrics()
   var y = startY
-  let total = filteredApps.len
-  let maxRows = config.maxVisibleItems
-  let start = viewOffset
-  let finish = min(viewOffset + maxRows, total)
+  let total = ctx.filteredApps.len
+  let maxRows = ctx.config.maxVisibleItems
+  let start = ctx.viewOffset
+  let finish = min(ctx.viewOffset + maxRows, total)
   for idx in start ..< finish:
-    let row = filteredApps[idx]
-    let selected = (idx == selectedIndex)
+    let row = ctx.filteredApps[idx]
+    let selected = (idx == ctx.selectedIndex)
     drawText(roundScaled(BasePromptInset, m.scale), y, row.text,
-        matchSpans[idx], selected, row.iconName)
+        ctx.matchSpans[idx], selected, row.iconName)
     y += m.lineHeightPx
   y
 
 proc drawOverlays() =
-  if themePreviewActive:
+  if ctx.themePreviewActive:
     drawThemeOverlay()
   else:
     drawStatusOverlay()
-  if config.vimMode:
+  if ctx.config.vimMode:
     drawClock(topRight = true)
   else:
     drawClock()
 
 proc drawCommandBar() =
-  if not (config.vimMode and vim.active):
+  if not (ctx.config.vimMode and ctx.vim.active):
     return
   let m = currentMetrics()
   let barHeight = m.lineHeightPx + m.commandBarExtraHeightPx
@@ -865,8 +868,8 @@ proc drawCommandBar() =
       colHighlightBg.b, 255'u8)
   discard renderFillRect(st.renderer, barRect.addr)
   var textX = roundScaled(BasePromptInset, m.scale)
-  if vim.prefix.len > 0:
-    let prefixTex = renderText(st.font, vim.prefix, colHighlightFg)
+  if ctx.vim.prefix.len > 0:
+    let prefixTex = renderText(st.font, ctx.vim.prefix, colHighlightFg)
     if not prefixTex.isNil:
       var tw, th: cfloat
       discard getTextureSize(prefixTex, tw, th)
@@ -875,7 +878,7 @@ proc drawCommandBar() =
       let pDst = toFRect(textX, barTop + (barHeight - ph) div 2, pw, ph)
       textX = textX + pw + m.overlayStackGapPx
       discard renderTexture(st.renderer, prefixTex, nil, pDst.addr)
-  let barText = vim.buffer
+  let barText = ctx.vim.buffer
   if barText.len > 0:
     let tex = renderText(st.font, barText, colHighlightFg)
     if not tex.isNil:

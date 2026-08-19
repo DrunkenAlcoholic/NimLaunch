@@ -5,22 +5,22 @@ import ./[state, paths]
 
 proc loadConfigFiles*() =
   ## Build the cached ~/.config file list once per run.
-  configFilesCache.setLen(0)
+  ctx.configFilesCache.setLen(0)
   let base = userConfigHome()
   try:
     for path in walkDirDepth(base, maxDepth = 2, yieldFilter = {pcFile}):
       let fn = path.extractFilename
       if fn.len == 0: continue
-      configFilesCache.add DesktopApp(
+      ctx.configFilesCache.add DesktopApp(
         name: fn,
         exec: path,
         hasIcon: false
       )
-    configFilesLoaded = true
+    ctx.configFilesLoaded = true
   except CatchableError as e:
-    configFilesLoaded = false
+    ctx.configFilesLoaded = false
     echo "loadConfigFiles warning: ", e.name, " ", e.msg
 
 proc ensureConfigFilesLoaded*() =
-  if not configFilesLoaded:
+  if not ctx.configFilesLoaded:
     loadConfigFiles()

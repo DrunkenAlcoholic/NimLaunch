@@ -86,7 +86,7 @@ proc handleTextEditing*(ev: Event): bool =
     echo "[window-debug] text-editing text=\"", preview,
         "\" start=", ev.edit.start,
         " length=", ev.edit.length,
-        " vimActive=", vim.active
+        " vimActive=", ctx.vim.active
   false
 
 proc handleTextEditingCandidates*(ev: Event): bool =
@@ -122,8 +122,8 @@ proc handleVimCommandKey*(sym: Keycode; ctrlHeld: bool;
     suppressText = true
     true
   of K_BACKSPACE, K_DELETE:
-    if vim.buffer.len > 0:
-      vim.buffer.setLen(vim.buffer.len - 1)
+    if ctx.vim.buffer.len > 0:
+      ctx.vim.buffer.setLen(ctx.vim.buffer.len - 1)
       syncVimCommand()
     else:
       closeVimCommand(restoreInput = true, preserveBuffer = false)
@@ -131,20 +131,20 @@ proc handleVimCommandKey*(sym: Keycode; ctrlHeld: bool;
     true
   else:
     if ctrlHeld and sym == K_h:
-      if vim.buffer.len > 0:
-        vim.buffer.setLen(vim.buffer.len - 1)
+      if ctx.vim.buffer.len > 0:
+        ctx.vim.buffer.setLen(ctx.vim.buffer.len - 1)
         syncVimCommand()
       else:
         closeVimCommand(restoreInput = true, preserveBuffer = false)
       suppressText = true
       return true
     if ctrlHeld and sym == K_u:
-      vim.buffer.setLen(0)
+      ctx.vim.buffer.setLen(0)
       syncVimCommand()
       suppressText = true
       return true
     if sym == K_ESCAPE:
-      let restore = vim.buffer.len == 0
+      let restore = ctx.vim.buffer.len == 0
       closeVimCommand(restoreInput = restore, preserveBuffer = true)
       suppressText = true
       return true
@@ -159,146 +159,146 @@ proc handleVimNormalKey*(sym: Keycode; modState: Keymod;
   case sym
   of K_g:
     if shiftHeld:
-      vim.pendingG = false
+      ctx.vim.pendingG = false
       jumpToBottom()
-    elif vim.pendingG:
-      vim.pendingG = false
+    elif ctx.vim.pendingG:
+      ctx.vim.pendingG = false
       jumpToTop()
     else:
-      vim.pendingG = true
+      ctx.vim.pendingG = true
     suppressText = true
     true
   of K_j:
-    vim.pendingG = false
+    ctx.vim.pendingG = false
     moveSelectionBy(1)
     suppressText = true
     true
   of K_k:
-    vim.pendingG = false
+    ctx.vim.pendingG = false
     moveSelectionBy(-1)
     suppressText = true
     true
   of K_h:
-    vim.pendingG = false
+    ctx.vim.pendingG = false
     deleteLastInputChar()
     suppressText = true
     true
   of K_l:
-    vim.pendingG = false
+    ctx.vim.pendingG = false
     activateCurrentSelection()
     suppressText = true
     true
   of K_ESCAPE:
-    shouldExit = true
+    ctx.shouldExit = true
     suppressText = true
     true
   else:
-    vim.pendingG = false
+    ctx.vim.pendingG = false
     false
 
 proc handleVimKey*(sym: Keycode; modState: Keymod;
     suppressText: var bool) =
-  if vim.active:
+  if ctx.vim.active:
     discard handleVimCommandKey(sym, (modState and CtrlMask) != 0, suppressText)
   else:
     discard handleVimNormalKey(sym, modState, suppressText)
 
 proc resetVimState*() =
-  vim = VimCommandState()
+  ctx.vim = VimCommandState()
 
 proc syncVimCommand*() =
-  inputText = vim.prefix & vim.buffer
-  lastInputChangeMs = gui.nowMs()
+  ctx.inputText = ctx.vim.prefix & ctx.vim.buffer
+  ctx.lastInputChangeMs = gui.nowMs()
   buildActions()
 
 proc openVimCommand*(initial: string = "") =
   gui.clearTextComposition()
-  if not vim.active:
-    vim.savedInput = inputText
-    vim.savedSelectedIndex = selectedIndex
-    vim.savedViewOffset = viewOffset
-    vim.restorePending = true
+  if not ctx.vim.active:
+    ctx.vim.savedInput = ctx.inputText
+    ctx.vim.savedSelectedIndex = ctx.selectedIndex
+    ctx.vim.savedViewOffset = ctx.viewOffset
+    ctx.vim.restorePending = true
   if initial.len > 0 and (initial[0] == ':' or initial[0] == '!'):
-    vim.prefix = initial[0 .. 0]
+    ctx.vim.prefix = initial[0 .. 0]
     if initial.len > 1:
-      vim.buffer = initial[1 .. ^1]
+      ctx.vim.buffer = initial[1 .. ^1]
     else:
-      vim.buffer.setLen(0)
+      ctx.vim.buffer.setLen(0)
   else:
-    vim.prefix = ""
-    if initial.len == 0 and vim.lastSearch.len > 0:
-      vim.buffer = vim.lastSearch
+    ctx.vim.prefix = ""
+    if initial.len == 0 and ctx.vim.lastSearch.len > 0:
+      ctx.vim.buffer = ctx.vim.lastSearch
     else:
-      vim.buffer = initial
-  vim.active = true
-  vim.pendingG = false
+      ctx.vim.buffer = initial
+  ctx.vim.active = true
+  ctx.vim.pendingG = false
   syncVimCommand()
 
 proc closeVimCommand*(restoreInput = false; preserveBuffer = false) =
   gui.clearTextComposition()
-  let savedInput = vim.savedInput
-  let savedSelected = vim.savedSelectedIndex
-  let savedOffset = vim.savedViewOffset
-  let savedBuffer = vim.prefix & vim.buffer
+  let savedInput = ctx.vim.savedInput
+  let savedSelected = ctx.vim.savedSelectedIndex
+  let savedOffset = ctx.vim.savedViewOffset
+  let savedBuffer = ctx.vim.prefix & ctx.vim.buffer
   if savedBuffer.len == 0:
-    vim.lastSearch = ""
+    ctx.vim.lastSearch = ""
   elif preserveBuffer and (savedBuffer[0] != ':' and savedBuffer[0] != '!'):
-    vim.lastSearch = savedBuffer
-  vim.buffer.setLen(0)
-  vim.prefix = ""
-  vim.active = false
-  vim.pendingG = false
+    ctx.vim.lastSearch = savedBuffer
+  ctx.vim.buffer.setLen(0)
+  ctx.vim.prefix = ""
+  ctx.vim.active = false
+  ctx.vim.pendingG = false
 
-  if restoreInput and vim.restorePending:
-    inputText = savedInput
-    lastInputChangeMs = gui.nowMs()
+  if restoreInput and ctx.vim.restorePending:
+    ctx.inputText = savedInput
+    ctx.lastInputChangeMs = gui.nowMs()
     buildActions()
 
-    if filteredApps.len > 0:
-      let clampedSel = max(0, min(savedSelected, filteredApps.len - 1))
-      let visibleRows = max(1, config.maxVisibleItems)
-      let maxOffset = max(0, filteredApps.len - visibleRows)
+    if ctx.filteredApps.len > 0:
+      let clampedSel = max(0, min(savedSelected, ctx.filteredApps.len - 1))
+      let visibleRows = max(1, ctx.config.maxVisibleItems)
+      let maxOffset = max(0, ctx.filteredApps.len - visibleRows)
       var newOffset = max(0, min(savedOffset, maxOffset))
       if clampedSel < newOffset:
         newOffset = clampedSel
       elif clampedSel >= newOffset + visibleRows:
         newOffset = max(0, clampedSel - visibleRows + 1)
-      selectedIndex = clampedSel
-      viewOffset = newOffset
+      ctx.selectedIndex = clampedSel
+      ctx.viewOffset = newOffset
     else:
-      selectedIndex = 0
-      viewOffset = 0
+      ctx.selectedIndex = 0
+      ctx.viewOffset = 0
 
-  vim.savedInput = ""
-  vim.savedSelectedIndex = 0
-  vim.savedViewOffset = 0
-  vim.restorePending = false
+  ctx.vim.savedInput = ""
+  ctx.vim.savedSelectedIndex = 0
+  ctx.vim.savedViewOffset = 0
+  ctx.vim.restorePending = false
 
 proc executeVimCommand*() =
   gui.clearTextComposition()
-  let trimmed = (vim.prefix & vim.buffer).strip()
+  let trimmed = (ctx.vim.prefix & ctx.vim.buffer).strip()
   closeVimCommand(preserveBuffer = false)
   if trimmed.len == 0:
     return
   if trimmed == ":q":
-    shouldExit = true
+    ctx.shouldExit = true
     return
-  inputText = trimmed
-  lastInputChangeMs = gui.nowMs()
+  ctx.inputText = trimmed
+  ctx.lastInputChangeMs = gui.nowMs()
   buildActions()
   if trimmed.len == 0 or (trimmed[0] != ':' and trimmed[0] != '!'):
-    vim.lastSearch = trimmed
-  if actions.len > 0:
+    ctx.vim.lastSearch = trimmed
+  if ctx.actions.len > 0:
     activateCurrentSelection()
 
 proc appendTextInput*(txt: string) =
   if txt.len == 0: return
-  if config.vimMode and vim.active:
-    vim.buffer.add(txt)
+  if ctx.config.vimMode and ctx.vim.active:
+    ctx.vim.buffer.add(txt)
     syncVimCommand()
   else:
-    inputText.add(txt)
-    lastInputChangeMs = gui.nowMs()
+    ctx.inputText.add(txt)
+    ctx.lastInputChangeMs = gui.nowMs()
     buildActions()
 
 proc handleWindowEvent*(ev: Event; focus: var FocusState): bool =
@@ -318,7 +318,7 @@ proc handleWindowEvent*(ev: Event; focus: var FocusState): bool =
   of EVENT_WINDOW_FOCUS_LOST, EVENT_WINDOW_HIDDEN, EVENT_WINDOW_MINIMIZED:
     gui.clearTextComposition()
     if shouldExitOnFocusLoss(focus):
-      shouldExit = true
+      ctx.shouldExit = true
   else:
     discard
 
@@ -355,7 +355,7 @@ proc handleKeyDown*(ev: Event; focus: var FocusState;
   elif shiftHeld and sym == K_INSERT:
     handled = pasteInputText()
     suppressNextTextInput = handled
-  elif config.vimMode:
+  elif ctx.config.vimMode:
     handleVimKey(sym, modState, suppressNextTextInput)
     handled = suppressNextTextInput
   elif sym == K_u and ctrlHeld:
@@ -367,7 +367,7 @@ proc handleKeyDown*(ev: Event; focus: var FocusState;
   else:
     case sym
     of K_ESCAPE:
-      shouldExit = true
+      ctx.shouldExit = true
       handled = true
     of K_RETURN:
       activateCurrentSelection()
@@ -387,12 +387,12 @@ proc handleKeyDown*(ev: Event; focus: var FocusState;
       moveSelectionBy(1)
       handled = true
     of K_PAGEUP:
-      if filteredApps.len > 0:
-        moveSelectionBy(-max(1, config.maxVisibleItems))
+      if ctx.filteredApps.len > 0:
+        moveSelectionBy(-max(1, ctx.config.maxVisibleItems))
       handled = true
     of K_PAGEDOWN:
-      if filteredApps.len > 0:
-        moveSelectionBy(max(1, config.maxVisibleItems))
+      if ctx.filteredApps.len > 0:
+        moveSelectionBy(max(1, ctx.config.maxVisibleItems))
       handled = true
     of K_HOME:
       jumpToTop()
@@ -412,22 +412,22 @@ proc handleTextInput*(ev: Event; focus: var FocusState;
     return false
   let s = $ev.text.text
   focus.hadFocus = true
-  if config.vimMode and not vim.active and s.len > 0:
+  if ctx.config.vimMode and not ctx.vim.active and s.len > 0:
     case s[0]
     of '/':
-      vim.pendingG = false
+      ctx.vim.pendingG = false
       openVimCommand("")
       return true
     of ':':
-      vim.pendingG = false
+      ctx.vim.pendingG = false
       openVimCommand(":")
       return true
     of '!':
-      vim.pendingG = false
+      ctx.vim.pendingG = false
       openVimCommand("!")
       return true
     else:
-      vim.pendingG = false
+      ctx.vim.pendingG = false
       return true
   appendTextInput(s)
   true

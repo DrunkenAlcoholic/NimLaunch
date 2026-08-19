@@ -40,7 +40,7 @@ enabled = true                    # Set to false to hide icons in the list
 # ==========================
 # Groups
 # ==========================
-# Define group names used by [[shortcuts]].
+# Define group names used by [[ctx.shortcuts]].
 # query_mode = "filter" (default) or "pass".
 
 [[groups]]
@@ -59,19 +59,19 @@ query_mode = "filter"
 #   run_mode = "terminal" (default) or "spawn" for shell commands
 #   stay_open = true keeps NimLaunch open after running the action
 
-[[shortcuts]]
+[[ctx.shortcuts]]
 prefix = ":g"
 label  = "Search Google: "
 base   = "https://www.google.com/search?q={query}"
 mode   = "url"
 
-[[shortcuts]]
+[[ctx.shortcuts]]
 prefix = ":w"
 label  = "Search Wiki: "
 base   = "https://en.wikipedia.org/wiki/Special:Search?search={query}"
 mode   = "url"
 
-[[shortcuts]]
+[[ctx.shortcuts]]
 prefix = ":y"
 label  = "Search YouTube: "
 base   = "https://www.youtube.com/results?search_query={query}"
@@ -82,7 +82,7 @@ mode   = "url"
 # ==========================
 # Use `:r` (or `!`) to execute shell commands directly without a custom shortcut.
 
-[[shortcuts]]
+[[ctx.shortcuts]]
 group     = "sys"
 label     = "Lock"
 base      = "loginctl lock-session"
@@ -90,7 +90,7 @@ mode      = "shell"
 run_mode  = "spawn"
 stay_open = false
 
-[[shortcuts]]
+[[ctx.shortcuts]]
 group     = "sys"
 label     = "Suspend"
 base      = "systemctl suspend"
@@ -98,7 +98,7 @@ mode      = "shell"
 run_mode  = "spawn"
 stay_open = false
 
-[[shortcuts]]
+[[ctx.shortcuts]]
 group     = "sys"
 label     = "Shutdown"
 base      = "systemctl poweroff"
@@ -106,7 +106,7 @@ mode      = "shell"
 run_mode  = "spawn"
 stay_open = false
 
-[[shortcuts]]
+[[ctx.shortcuts]]
 group     = "sys"
 label     = "Reboot"
 base      = "systemctl reboot"
@@ -114,7 +114,7 @@ mode      = "shell"
 run_mode  = "spawn"
 stay_open = false
 
-[[shortcuts]]
+[[ctx.shortcuts]]
 group     = "sys"
 label     = "Logout"
 base      = "loginctl terminate-user $USER"

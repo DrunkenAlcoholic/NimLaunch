@@ -33,53 +33,57 @@ let recentFile* = cacheDir() / "recent.json"
 let usageFile* = cacheDir() / "usage.json"
 
 proc loadRecent*() =
-  ## Populate state.recentApps from disk; log on error.
+  ## Populate ctx.recentApps from disk; log on error.
   if fileExists(recentFile):
     try:
       let j = parseJson(readFile(recentFile))
-      state.recentApps = j.to(seq[string])
-    except CatchableError as e:
+      ctx.recentApps = j.to(seq[string])
+    except IOError, OSError, ValueError:
+      let e = getCurrentException()
       echo "loadRecent warning: ", recentFile, " (", e.name, "): ", e.msg
 
 proc saveRecent*() =
-  ## Persist state.recentApps to disk; log on error.
+  ## Persist ctx.recentApps to disk; log on error.
   try:
     createDir(recentFile.parentDir)
-    writeFile(recentFile, $ %state.recentApps)
-  except CatchableError as e:
+    writeFile(recentFile, $ %ctx.recentApps)
+  except IOError, OSError:
+    let e = getCurrentException()
     echo "saveRecent warning: ", recentFile, " (", e.name, "): ", e.msg
 
 proc loadUsage*() =
   ## Populate per-app usage stats from disk; log on error.
-  appUsage = initTable[string, AppUsage]()
+  ctx.appUsage = initTable[string, AppUsage]()
   if fileExists(usageFile):
     try:
       let j = parseJson(readFile(usageFile))
-      appUsage = j.to(Table[string, AppUsage])
-    except CatchableError as e:
+      ctx.appUsage = j.to(Table[string, AppUsage])
+    except IOError, OSError, ValueError:
+      let e = getCurrentException()
       echo "loadUsage warning: ", usageFile, " (", e.name, "): ", e.msg
 
 proc saveUsage*() =
   ## Persist per-app usage stats to disk; log on error.
   try:
     createDir(usageFile.parentDir)
-    writeFile(usageFile, $ %appUsage)
-  except CatchableError as e:
+    writeFile(usageFile, $ %ctx.appUsage)
+  except IOError, OSError:
+    let e = getCurrentException()
     echo "saveUsage warning: ", usageFile, " (", e.name, "): ", e.msg
 
 proc recordAppLaunch*(name: string) =
   ## Update MRU ordering and persistent launch stats for an app-like action.
   if name.len == 0:
     return
-  let ri = recentApps.find(name)
+  let ri = ctx.recentApps.find(name)
   if ri >= 0:
-    recentApps.delete(ri)
-  recentApps.insert(name, 0)
-  if recentApps.len > maxRecent:
-    recentApps.setLen(maxRecent)
-  var stats = appUsage.getOrDefault(name)
+    ctx.recentApps.delete(ri)
+  ctx.recentApps.insert(name, 0)
+  if ctx.recentApps.len > maxRecent:
+    ctx.recentApps.setLen(maxRecent)
+  var stats = ctx.appUsage.getOrDefault(name)
   inc stats.launchCount
   stats.lastLaunched = epochTime().int64
-  appUsage[name] = stats
+  ctx.appUsage[name] = stats
   saveRecent()
   saveUsage()

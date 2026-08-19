@@ -1,4 +1,4 @@
-## settings.nim — config and theme loading for NimLaunch.
+## settings.nim — ctx.config and theme loading for NimLaunch.
 
 import std/[os, strutils, math, options, tables]
 import parsetoml as toml
@@ -33,12 +33,12 @@ proc tomlEscapeBasicString(s: string): string =
         result.add ch
 
 proc applyTheme*(cfg: var Config; name: string) =
-  ## Set theme fields from `themeList` by name; respect explicit match color.
+  ## Set theme fields from `ctx.themeList` by name; respect explicit match color.
   let fallbackMatch = if baseMatchFgColorHex.len > 0:
     baseMatchFgColorHex
   else:
     cfg.matchFgColorHex
-  for i, th in st.themeList:
+  for i, th in ctx.themeList:
     if th.name.toLowerAscii == name.toLowerAscii:
       cfg.bgColorHex = th.bgColorHex
       cfg.fgColorHex = th.fgColorHex
@@ -52,23 +52,18 @@ proc applyTheme*(cfg: var Config; name: string) =
       cfg.themeName = th.name
       break
 
+proc getRgb(hex: string; defaultRgb: Rgb): Rgb =
+  let opt = parseHexRgb8(hex)
+  if isSome(opt): get(opt) else: defaultRgb
+
 proc updateParsedColors*(cfg: var Config) =
-  ## Resolve hex → RGB colours for SDL rendering.
-  let bg = parseHexRgb8(cfg.bgColorHex)
-  let fg = parseHexRgb8(cfg.fgColorHex)
-  let hbg = parseHexRgb8(cfg.highlightBgColorHex)
-  let hfg = parseHexRgb8(cfg.highlightFgColorHex)
-  let border = parseHexRgb8(cfg.borderColorHex)
-  let match = parseHexRgb8(cfg.matchFgColorHex)
-  if isNone(bg) or isNone(fg) or isNone(hbg) or isNone(hfg) or isNone(border) or
-      isNone(match):
-    quit "Invalid colour in theme configuration"
-  cfg.bgColor = get(bg)
-  cfg.fgColor = get(fg)
-  cfg.highlightBgColor = get(hbg)
-  cfg.highlightFgColor = get(hfg)
-  cfg.borderColor = get(border)
-  cfg.matchFgColor = get(match)
+  ## Resolve hex → RGB colours for SDL rendering. Fallback if invalid.
+  cfg.bgColor = getRgb(cfg.bgColorHex, Rgb(r: 30, g: 30, b: 30))
+  cfg.fgColor = getRgb(cfg.fgColorHex, Rgb(r: 200, g: 200, b: 200))
+  cfg.highlightBgColor = getRgb(cfg.highlightBgColorHex, Rgb(r: 60, g: 60, b: 60))
+  cfg.highlightFgColor = getRgb(cfg.highlightFgColorHex, Rgb(r: 255, g: 255, b: 255))
+  cfg.borderColor = getRgb(cfg.borderColorHex, Rgb(r: 100, g: 100, b: 100))
+  cfg.matchFgColor = getRgb(cfg.matchFgColorHex, Rgb(r: 255, g: 100, b: 100))
 
 proc applyThemeAndColors*(cfg: var Config; name: string; doNotify = true;
     doRedraw = true) =
@@ -83,13 +78,14 @@ proc applyThemeAndColors*(cfg: var Config; name: string; doNotify = true;
 
 proc saveLastTheme*(cfgPath: string) =
   ## Update or insert [theme].last_chosen = "<name>" in the TOML file.
-  let escapedTheme = tomlEscapeBasicString(st.config.themeName)
+  let escapedTheme = tomlEscapeBasicString(ctx.config.themeName)
   let lastChosenLine = "last_chosen = \"" & escapedTheme & "\""
   var lines: seq[string]
   try:
     lines = readFile(cfgPath).splitLines()
-  except CatchableError as e:
-    echo "saveLastTheme warning: unable to read ", cfgPath, " (", e.name, "): ", e.msg
+  except IOError, OSError:
+    let e = getCurrentException()
+    if ctx.verboseMode: echo "saveLastTheme warning: unable to read ", cfgPath, " (", e.name, "): ", e.msg
     return
   var inTheme = false
   var updated = false
@@ -123,18 +119,18 @@ proc saveLastTheme*(cfgPath: string) =
   if updated:
     try:
       writeFile(cfgPath, lines.join("\n"))
-    except CatchableError as e:
-      echo "saveLastTheme warning: unable to write ", cfgPath, " (", e.name,
-          "): ", e.msg
+    except IOError, OSError:
+      let e = getCurrentException()
+      if ctx.verboseMode: echo "saveLastTheme warning: unable to write ", cfgPath, " (", e.name, "): ", e.msg
 
 proc loadShortcutsSection(tbl: toml.TomlValueRef; cfgPath: string) =
-  ## Populate `state.shortcuts` from `[[shortcuts]]` entries in *tbl*.
-  st.shortcuts = @[]
-  if not tbl.hasKey("shortcuts"): return
+  ## Populate `ctx.shortcuts` from `[[ctx.shortcuts]]` entries in *tbl*.
+  ctx.shortcuts = @[]
+  if not tbl.hasKey("ctx.shortcuts"): return
 
   try:
     var invalidCount = 0
-    for scVal in tbl["shortcuts"].getElems():
+    for scVal in tbl["ctx.shortcuts"].getElems():
       try:
         let scTbl = scVal.getTable()
         let prefixRaw = scTbl.getOrDefault("prefix").getStr("")
@@ -166,7 +162,7 @@ proc loadShortcutsSection(tbl: toml.TomlValueRef; cfgPath: string) =
         of "terminal": runMode = pamTerminal
         else: discard
 
-        st.shortcuts.add Shortcut(prefix: prefix,
+        ctx.shortcuts.add Shortcut(prefix: prefix,
                                   label: label,
                                   base: base,
                                   mode: mode,
@@ -177,9 +173,9 @@ proc loadShortcutsSection(tbl: toml.TomlValueRef; cfgPath: string) =
         inc invalidCount
     if invalidCount > 0:
       echo "NimLaunch warning: skipped ", invalidCount,
-          " invalid [[shortcuts]] entries in ", cfgPath
+          " invalid [[ctx.shortcuts]] entries in ", cfgPath
   except CatchableError:
-    echo "NimLaunch warning: ignoring invalid [[shortcuts]] entries in ", cfgPath
+    echo "NimLaunch warning: ignoring invalid [[ctx.shortcuts]] entries in ", cfgPath
 
 proc parseGroupQueryMode(modeStr: string): GroupQueryMode =
   case modeStr
@@ -187,8 +183,8 @@ proc parseGroupQueryMode(modeStr: string): GroupQueryMode =
   else: gqmFilter
 
 proc loadGroupsSection(tbl: toml.TomlValueRef; cfgPath: string) =
-  ## Populate `state.groupQueryModes` from `[[groups]]` entries in *tbl*.
-  st.groupQueryModes = initTable[string, GroupQueryMode]()
+  ## Populate `ctx.groupQueryModes` from `[[groups]]` entries in *tbl*.
+  ctx.groupQueryModes = initTable[string, GroupQueryMode]()
   if not tbl.hasKey("groups"): return
 
   try:
@@ -200,7 +196,7 @@ proc loadGroupsSection(tbl: toml.TomlValueRef; cfgPath: string) =
         if name.len == 0:
           continue
         let modeStr = grpTbl.getOrDefault("query_mode").getStr("filter").strip().toLowerAscii
-        st.groupQueryModes[name] = parseGroupQueryMode(modeStr)
+        ctx.groupQueryModes[name] = parseGroupQueryMode(modeStr)
       except CatchableError:
         inc invalidCount
     if invalidCount > 0:
@@ -211,46 +207,46 @@ proc loadGroupsSection(tbl: toml.TomlValueRef; cfgPath: string) =
 
 proc ensureGroupDefaults() =
   ## Ensure every shortcut group exists with a default query mode.
-  for sc in st.shortcuts:
+  for sc in ctx.shortcuts:
     if sc.group.len == 0: continue
-    if not st.groupQueryModes.hasKey(sc.group):
-      st.groupQueryModes[sc.group] = gqmFilter
+    if not ctx.groupQueryModes.hasKey(sc.group):
+      ctx.groupQueryModes[sc.group] = gqmFilter
 
 proc initLauncherConfig*() =
   ## Initialize defaults, read TOML, apply last theme, compute geometry.
-  st.config = Config() # zero-init
-  st.groupQueryModes = initTable[string, GroupQueryMode]()
+  ctx.config = Config() # zero-init
+  ctx.groupQueryModes = initTable[string, GroupQueryMode]()
 
   ## In-code defaults
-  st.config.winWidth = 500
-  st.config.lineHeight = 22
-  st.config.maxVisibleItems = 10
-  st.config.centerWindow = true
-  st.config.positionX = 20
-  st.config.positionY = 500
-  st.config.verticalAlign = "one-third"
-  st.config.displayIndex = 0
-  st.config.fontName = "Dejavu:size=16"
-  st.config.prompt = "> "
-  st.config.cursor = "_"
-  st.config.opacity = 1.0
-  st.config.terminalExe = "gnome-terminal"
-  st.config.borderWidth = 2
-  st.config.matchFgColorHex = "#f8c291"
-  st.config.vimMode = false
-  st.config.showIcons = true
-  st.config.pollIntervalMs = 10
+  ctx.config.winWidth = 500
+  ctx.config.lineHeight = 22
+  ctx.config.maxVisibleItems = 10
+  ctx.config.centerWindow = true
+  ctx.config.positionX = 20
+  ctx.config.positionY = 500
+  ctx.config.verticalAlign = "one-third"
+  ctx.config.displayIndex = 0
+  ctx.config.fontName = "Dejavu:size=16"
+  ctx.config.prompt = "> "
+  ctx.config.cursor = "_"
+  ctx.config.opacity = 1.0
+  ctx.config.terminalExe = "gnome-terminal"
+  ctx.config.borderWidth = 2
+  ctx.config.matchFgColorHex = "#f8c291"
+  ctx.config.vimMode = false
+  ctx.config.showIcons = true
+  ctx.config.pollIntervalMs = 10
 
   ## Ensure TOML exists
   let cfgDir = configDir()
-  let cfgPath = if st.configOverridePath.len > 0: st.configOverridePath else: cfgDir / "nimlaunch.toml"
+  let cfgPath = if ctx.configOverridePath.len > 0: ctx.configOverridePath else: cfgDir / "nimlaunch.toml"
   if not fileExists(cfgPath):
     try:
       createDir(parentDir(cfgPath))
       writeFile(cfgPath, defaultToml)
-      echo "Created default config at ", cfgPath
+      echo "Created default ctx.config at ", cfgPath
     except CatchableError as e:
-      echo "NimLaunch warning: unable to write default config at ", cfgPath,
+      echo "NimLaunch warning: unable to write default ctx.config at ", cfgPath,
           " (", e.name, "): ", e.msg
 
   ## Parse TOML
@@ -258,7 +254,7 @@ proc initLauncherConfig*() =
   try:
     tbl = toml.parseFile(cfgPath)
   except CatchableError as e:
-    echo "NimLaunch config error: failed to parse ", cfgPath
+    echo "NimLaunch ctx.config error: failed to parse ", cfgPath
     echo "  ", e.name, ": ", e.msg
     echo "  NimLaunch is ignoring this file and using built-in defaults for this session."
     echo "  Fix the TOML file and restart NimLaunch to restore your saved settings."
@@ -268,22 +264,22 @@ proc initLauncherConfig*() =
   if tbl.hasKey("window"):
     try:
       let w = tbl["window"].getTable()
-      st.config.winWidth = w.getOrDefault("width").getInt(st.config.winWidth)
-      st.config.maxVisibleItems = w.getOrDefault("max_visible_items").getInt(
-          st.config.maxVisibleItems)
-      st.config.centerWindow = w.getOrDefault("center").getBool(
-          st.config.centerWindow)
-      st.config.positionX = w.getOrDefault("position_x").getInt(
-          st.config.positionX)
-      st.config.positionY = w.getOrDefault("position_y").getInt(
-          st.config.positionY)
-      st.config.verticalAlign = w.getOrDefault("vertical_align").getStr(
-          st.config.verticalAlign)
-      st.config.displayIndex = w.getOrDefault("display").getInt(
-          st.config.displayIndex)
-      st.config.pollIntervalMs = w.getOrDefault("pollIntervalMs").getInt(
-          st.config.pollIntervalMs)
-      st.config.opacity = w.getOrDefault("opacity").getFloat(st.config.opacity)
+      ctx.config.winWidth = w.getOrDefault("width").getInt(ctx.config.winWidth)
+      ctx.config.maxVisibleItems = w.getOrDefault("max_visible_items").getInt(
+          ctx.config.maxVisibleItems)
+      ctx.config.centerWindow = w.getOrDefault("center").getBool(
+          ctx.config.centerWindow)
+      ctx.config.positionX = w.getOrDefault("position_x").getInt(
+          ctx.config.positionX)
+      ctx.config.positionY = w.getOrDefault("position_y").getInt(
+          ctx.config.positionY)
+      ctx.config.verticalAlign = w.getOrDefault("vertical_align").getStr(
+          ctx.config.verticalAlign)
+      ctx.config.displayIndex = w.getOrDefault("display").getInt(
+          ctx.config.displayIndex)
+      ctx.config.pollIntervalMs = w.getOrDefault("pollIntervalMs").getInt(
+          ctx.config.pollIntervalMs)
+      ctx.config.opacity = w.getOrDefault("opacity").getFloat(ctx.config.opacity)
     except CatchableError:
       echo "NimLaunch warning: ignoring invalid [window] section in ", cfgPath
 
@@ -291,7 +287,7 @@ proc initLauncherConfig*() =
   if tbl.hasKey("font"):
     try:
       let f = tbl["font"].getTable()
-      st.config.fontName = f.getOrDefault("fontname").getStr(st.config.fontName)
+      ctx.config.fontName = f.getOrDefault("fontname").getStr(ctx.config.fontName)
     except CatchableError:
       echo "NimLaunch warning: ignoring invalid [font] section in ", cfgPath
 
@@ -299,10 +295,10 @@ proc initLauncherConfig*() =
   if tbl.hasKey("input"):
     try:
       let inp = tbl["input"].getTable()
-      st.config.prompt = inp.getOrDefault("prompt").getStr(st.config.prompt)
-      st.config.cursor = inp.getOrDefault("cursor").getStr(st.config.cursor)
-      st.config.vimMode = inp.getOrDefault("vim_mode").getBool(
-          st.config.vimMode)
+      ctx.config.prompt = inp.getOrDefault("prompt").getStr(ctx.config.prompt)
+      ctx.config.cursor = inp.getOrDefault("cursor").getStr(ctx.config.cursor)
+      ctx.config.vimMode = inp.getOrDefault("vim_mode").getBool(
+          ctx.config.vimMode)
     except CatchableError:
       echo "NimLaunch warning: ignoring invalid [input] section in ", cfgPath
 
@@ -310,8 +306,8 @@ proc initLauncherConfig*() =
   if tbl.hasKey("terminal"):
     try:
       let term = tbl["terminal"].getTable()
-      st.config.terminalExe = term.getOrDefault("program").getStr(
-          st.config.terminalExe)
+      ctx.config.terminalExe = term.getOrDefault("program").getStr(
+          ctx.config.terminalExe)
     except CatchableError:
       echo "NimLaunch warning: ignoring invalid [terminal] section in ", cfgPath
 
@@ -320,8 +316,8 @@ proc initLauncherConfig*() =
   if tbl.hasKey("border"):
     try:
       let b = tbl["border"].getTable()
-      st.config.borderWidth = b.getOrDefault("width").getInt(
-          st.config.borderWidth)
+      ctx.config.borderWidth = b.getOrDefault("width").getInt(
+          ctx.config.borderWidth)
     except CatchableError:
       echo "NimLaunch warning: ignoring invalid [border] section in ", cfgPath
 
@@ -329,20 +325,20 @@ proc initLauncherConfig*() =
   if tbl.hasKey("icons"):
     try:
       let ic = tbl["icons"].getTable()
-      st.config.showIcons = ic.getOrDefault("enabled").getBool(
-          st.config.showIcons)
+      ctx.config.showIcons = ic.getOrDefault("enabled").getBool(
+          ctx.config.showIcons)
     except CatchableError:
       echo "NimLaunch warning: ignoring invalid [icons] section in ", cfgPath
 
   ## themes
-  st.themeList = @[]
+  ctx.themeList = @[]
   if tbl.hasKey("themes"):
     try:
       var invalidCount = 0
       for thVal in tbl["themes"].getElems():
         try:
           let th = thVal.getTable()
-          st.themeList.add Theme(
+          ctx.themeList.add Theme(
             name: th.getOrDefault("name").getStr(""),
             bgColorHex: th.getOrDefault("bgColorHex").getStr(""),
             fgColorHex: th.getOrDefault("fgColorHex").getStr(""),
@@ -375,36 +371,36 @@ proc initLauncherConfig*() =
       echo "NimLaunch warning: ignoring invalid [theme] section in ", cfgPath
   var pickedIndex = -1
   if lastName.len > 0:
-    for i, th in st.themeList:
+    for i, th in ctx.themeList:
       if th.name.toLowerAscii == lastName.toLowerAscii:
         pickedIndex = i
         break
   if pickedIndex < 0:
-    if st.themeList.len > 0: pickedIndex = 0
+    if ctx.themeList.len > 0: pickedIndex = 0
     else: quit("NimLaunch error: no themes defined in nimlaunch.toml")
 
-  let chosen = st.themeList[pickedIndex].name
-  st.config.themeName = chosen
+  let chosen = ctx.themeList[pickedIndex].name
+  ctx.config.themeName = chosen
   if baseMatchFgColorHex.len == 0:
-    baseMatchFgColorHex = st.config.matchFgColorHex
-  applyTheme(st.config, chosen)
+    baseMatchFgColorHex = ctx.config.matchFgColorHex
+  applyTheme(ctx.config, chosen)
   if chosen != lastName:
     saveLastTheme(cfgPath)
 
-  ## guard rails for config values that affect layout/search limits
-  st.config.winWidth = clamp(st.config.winWidth, 200, 4000)
-  if st.config.maxVisibleItems < 1:
-    st.config.maxVisibleItems = 1
-  if st.config.borderWidth < 0:
-    st.config.borderWidth = 0
-  elif st.config.borderWidth > 64:
-    st.config.borderWidth = 64
-  if st.config.displayIndex < 0:
-    st.config.displayIndex = 0
-  st.config.opacity = clamp(st.config.opacity, 0.1, 1.0)
+  ## guard rails for ctx.config values that affect layout/search limits
+  ctx.config.winWidth = clamp(ctx.config.winWidth, 200, 4000)
+  if ctx.config.maxVisibleItems < 1:
+    ctx.config.maxVisibleItems = 1
+  if ctx.config.borderWidth < 0:
+    ctx.config.borderWidth = 0
+  elif ctx.config.borderWidth > 64:
+    ctx.config.borderWidth = 64
+  if ctx.config.displayIndex < 0:
+    ctx.config.displayIndex = 0
+  ctx.config.opacity = clamp(ctx.config.opacity, 0.1, 1.0)
 
   ## derived geometry
-  st.config.winMaxHeight = 40 + st.config.maxVisibleItems * st.config.lineHeight
-  let maxUsableBorder = max(0, (min(st.config.winWidth, st.config.winMaxHeight) - 1) div 2)
-  if st.config.borderWidth > maxUsableBorder:
-    st.config.borderWidth = maxUsableBorder
+  ctx.config.winMaxHeight = 40 + ctx.config.maxVisibleItems * ctx.config.lineHeight
+  let maxUsableBorder = max(0, (min(ctx.config.winWidth, ctx.config.winMaxHeight) - 1) div 2)
+  if ctx.config.borderWidth > maxUsableBorder:
+    ctx.config.borderWidth = maxUsableBorder

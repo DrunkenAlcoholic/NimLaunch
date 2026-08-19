@@ -1,4 +1,4 @@
-## app_core.nim — NimLaunch application logic for search, actions, and launch flow.
+## app_core.nim — NimLaunch application logic for search, ctx.actions, and launch flow.
 
 import std/[os, strutils, tables, sets, uri,
             algorithm, heapqueue, exitprocs]
@@ -13,9 +13,6 @@ when defined(posix):
         header: "<sys/file.h>".}
 
 # ── Module-local globals ────────────────────────────────────────────────
-var
-  actions*: seq[Action] ## transient list for the UI
-
 const
   DefaultAppSearchCap = 200
   iconAliases = {
@@ -70,7 +67,7 @@ proc pickDesktopActionIcon(app: DesktopApp; action: DesktopEntryAction): string 
 
 proc addDesktopActionRows(rows: var seq[Action]; app: DesktopApp) =
   for desktopAction in app.desktopActions:
-    let iconName = if config.showIcons: pickDesktopActionIcon(app, desktopAction) else: ""
+    let iconName = if ctx.config.showIcons: pickDesktopActionIcon(app, desktopAction) else: ""
     rows.add Action(
       kind: akAppAction,
       label: app.name & " · " & desktopAction.name,
@@ -150,7 +147,7 @@ else:
       discard
     true
 
-# ── Command parsing / actions helpers ───────────────────────────────────
+# ── Command parsing / ctx.actions helpers ───────────────────────────────────
 type CmdKind* = enum
   ## Recognised input prefixes.
   ckNone,     # no special prefix
@@ -158,7 +155,7 @@ type CmdKind* = enum
   ckConfig,   # `c:`
   ckSearch,   # `s:` fast file search
   ckGroup,    # user-defined group prefix
-  ckShortcut, # custom shortcuts (e.g. :g, :wiki)
+  ckShortcut, # custom ctx.shortcuts (e.g. :g, :wiki)
   ckRun,      # raw `r:` command
   ckQuit      # `:q` or `:quit` to exit
 
@@ -175,9 +172,9 @@ proc takePrefix(input, pfx: string; rest: var string): bool =
   false
 
 proc parseCommand*(inputText: string): (CmdKind, string, int, string) =
-  ## Parse *inputText* and return the command kind, remainder, shortcut index, and group name.
-  if inputText.len > 0 and inputText[0] == ':':
-    var body = inputText[1 .. ^1]
+  ## Parse *ctx.inputText* and return the command kind, remainder, shortcut index, and group name.
+  if ctx.inputText.len > 0 and ctx.inputText[0] == ':':
+    var body = ctx.inputText[1 .. ^1]
     var rest = ""
     let sep = body.find({' ', '\t'})
     var keyword = body
@@ -194,19 +191,19 @@ proc parseCommand*(inputText: string): (CmdKind, string, int, string) =
     of "r": return (ckRun, rest, -1, "")
     of "q", "quit": return (ckQuit, rest, -1, "")
     else:
-      for i, sc in shortcuts:
+      for i, sc in ctx.shortcuts:
         if sc.prefix.len == 0:
           continue
         if norm == sc.prefix:
           return (ckShortcut, rest, i, "")
-      if groupQueryModes.hasKey(norm):
+      if ctx.groupQueryModes.hasKey(norm):
         return (ckGroup, rest, -1, norm)
-      return (ckNone, inputText, -1, "")
+      return (ckNone, ctx.inputText, -1, "")
 
   var rest: string
-  if takePrefix(inputText, "!", rest):
+  if takePrefix(ctx.inputText, "!", rest):
     return (ckRun, rest.strip(), -1, "")
-  (ckNone, inputText, -1, "")
+  (ckNone, ctx.inputText, -1, "")
 
 # ── Applications discovery (.desktop) ───────────────────────────────────
 proc substituteQuery(pattern, value: string): string =
@@ -245,9 +242,9 @@ proc buildThemeActions(rest: string; defaultIndex: var int): seq[Action] =
   ## Build theme selection rows and remember the currently active index.
   defaultIndex = 0
   let ql = rest.toLowerAscii
-  let currentThemeLower = config.themeName.toLowerAscii
+  let currentThemeLower = ctx.config.themeName.toLowerAscii
   var idx = 0
-  for th in themeList:
+  for th in ctx.themeList:
     if ql.len == 0 or th.name.toLowerAscii.contains(ql):
       result.add Action(kind: akTheme, label: th.name, exec: th.name, iconName: "")
       if th.name.toLowerAscii == currentThemeLower:
@@ -260,7 +257,7 @@ proc buildConfigActions(rest: string): seq[Action] =
   ## Build configuration file results under ~/.config.
   ensureConfigFilesLoaded()
   let ql = rest.toLowerAscii
-  for entry in configFilesCache:
+  for entry in ctx.configFilesCache:
     if ql.len == 0 or entry.name.toLowerAscii.contains(ql):
       result.add Action(kind: akConfig, label: entry.name, exec: entry.exec, iconName: "")
   if result.len == 0:
@@ -268,9 +265,9 @@ proc buildConfigActions(rest: string): seq[Action] =
 
 proc buildShortcutActions(rest: string; shortcutIdx: int): seq[Action] =
   ## Resolve a configured shortcut against the current query.
-  if shortcutIdx < 0 or shortcutIdx >= shortcuts.len:
+  if shortcutIdx < 0 or shortcutIdx >= ctx.shortcuts.len:
     return @[Action(kind: akPlaceholder, label: "Shortcut not found", exec: "")]
-  let sc = shortcuts[shortcutIdx]
+  let sc = ctx.shortcuts[shortcutIdx]
   @[Action(kind: akShortcut,
            label: shortcutLabel(sc, rest),
            exec: shortcutExec(sc, rest),
@@ -280,17 +277,17 @@ proc buildShortcutActions(rest: string; shortcutIdx: int): seq[Action] =
            stayOpen: sc.stayOpen)]
 
 proc groupQueryMode(name: string): GroupQueryMode =
-  if groupQueryModes.hasKey(name): groupQueryModes[name] else: gqmFilter
+  if ctx.groupQueryModes.hasKey(name): ctx.groupQueryModes[name] else: gqmFilter
 
 proc buildGroupActions(groupName, rest: string): seq[Action] =
-  ## Build grouped actions. Query mode controls pass-through vs filter.
+  ## Build grouped ctx.actions. Query mode controls pass-through vs filter.
   var entries: seq[Shortcut] = @[]
-  for sc in shortcuts:
+  for sc in ctx.shortcuts:
     if sc.group == groupName:
       entries.add sc
   if entries.len == 0:
     return @[Action(kind: akPlaceholder,
-                    label: "No actions in group",
+                    label: "No ctx.actions in group",
                     exec: "")]
 
   if groupQueryMode(groupName) == gqmPass:
@@ -361,7 +358,7 @@ proc scoreSearchCandidate(query: string; queryLower: string; fileName: string;
 
 proc buildSearchActions(rest: string): seq[Action] =
   ## File search via :s — respects debounce and reuses cached results.
-  let sinceEdit = gui.nowMs() - lastInputChangeMs
+  let sinceEdit = gui.nowMs() - ctx.lastInputChangeMs
   if rest.len < 2 or sinceEdit < SearchDebounceMs:
     return @[Action(kind: akPlaceholder, label: "Searching…", exec: "")]
 
@@ -385,7 +382,7 @@ proc buildSearchActions(rest: string): seq[Action] =
   let homeDir = getHomeDir()
   let homeDepth = pathDepth(homeDir)
   var topScores = initHeapQueue[(int, string)]()
-  let limit = config.maxVisibleItems
+  let limit = ctx.config.maxVisibleItems
   let queryLower = restLower
 
   for idx in 0 ..< paths.len:
@@ -417,13 +414,13 @@ proc buildDmenuActions(rest: string): seq[Action] =
   ## Dmenu mode — filter stdin-provided lines and return the raw selection.
   let query = rest
   if query.len == 0:
-    for item in dmenuItems:
+    for item in ctx.dmenuItems:
       result.add Action(kind: akDmenu, label: item.label, exec: item.label, iconName: item.iconName)
   else:
     var top = initHeapQueue[(int, int)]()
-    let limit = max(250, config.maxVisibleItems * 8)
+    let limit = max(250, ctx.config.maxVisibleItems * 8)
     let queryLower = query.toLowerAscii
-    for i, item in dmenuItems:
+    for i, item in ctx.dmenuItems:
       let s = scoreMatch(query, queryLower, item.label, item.labelLower, item.label, "")
       if s > -1_000_000:
         push(top, (s, i))
@@ -439,7 +436,7 @@ proc buildDmenuActions(rest: string): seq[Action] =
         result = cmp(a[1], b[1])
     )
     for item in ranked:
-      let dItem = dmenuItems[item[1]]
+      let dItem = ctx.dmenuItems[item[1]]
       result.add Action(kind: akDmenu, label: dItem.label, exec: dItem.label, iconName: dItem.iconName)
 
   if result.len == 0:
@@ -449,21 +446,21 @@ proc buildDefaultActions(rest: string; defaultIndex: var int): seq[Action] =
   ## Default launcher view — MRU when empty, fuzzy search otherwise.
   defaultIndex = 0
   if rest.len == 0:
-    var index = initTable[string, DesktopApp](allApps.len * 2)
-    for app in allApps:
+    var index = initTable[string, DesktopApp](ctx.allApps.len * 2)
+    for app in ctx.allApps:
       index[app.name] = app
 
     var seen = initHashSet[string]()
-    for name in recentApps:
+    for name in ctx.recentApps:
       if index.hasKey(name):
         let app = index[name]
-        let iconName = if config.showIcons: pickIcon(app) else: ""
+        let iconName = if ctx.config.showIcons: pickIcon(app) else: ""
         result.add Action(kind: akApp, label: app.name, exec: app.exec,
             appData: app, iconName: iconName)
         seen.incl name
 
     var remaining: seq[DesktopApp] = @[]
-    for app in allApps:
+    for app in ctx.allApps:
       if not seen.contains(app.name):
         remaining.add app
     remaining.sort(proc(a, b: DesktopApp): int =
@@ -472,14 +469,14 @@ proc buildDefaultActions(rest: string; defaultIndex: var int): seq[Action] =
         result = cmpIgnoreCase(a.name, b.name)
     )
     for app in remaining:
-      let iconName = if config.showIcons: pickIcon(app) else: ""
+      let iconName = if ctx.config.showIcons: pickIcon(app) else: ""
       result.add Action(kind: akApp, label: app.name, exec: app.exec,
           appData: app, iconName: iconName)
   else:
     var top = initHeapQueue[(int, int)]()
-    let limit = max(DefaultAppSearchCap, config.maxVisibleItems * 8)
+    let limit = max(DefaultAppSearchCap, ctx.config.maxVisibleItems * 8)
     let queryLower = rest.toLowerAscii
-    for i, app in allApps:
+    for i, app in ctx.allApps:
       let s = scoreMatch(rest, queryLower, app.name, app.nameLower, app.name, "")
       if s > -1_000_000:
         push(top, (s + recentBoost(app.name) + usageBoost(app.name), i))
@@ -488,11 +485,11 @@ proc buildDefaultActions(rest: string; defaultIndex: var int): seq[Action] =
     while top.len > 0: ranked.add pop(top)
     ranked.sort(proc(a, b: (int, int)): int =
       result = cmp(b[0], a[0])
-      if result == 0: result = cmpIgnoreCase(allApps[a[1]].name, allApps[b[1]].name)
+      if result == 0: result = cmpIgnoreCase(ctx.allApps[a[1]].name, ctx.allApps[b[1]].name)
     )
     for item in ranked:
-      let app = allApps[item[1]]
-      let iconName = if config.showIcons: pickIcon(app) else: ""
+      let app = ctx.allApps[item[1]]
+      let iconName = if ctx.config.showIcons: pickIcon(app) else: ""
       result.add Action(kind: akApp, label: app.name, exec: app.exec,
           appData: app, iconName: iconName)
       let appLower = app.nameLower
@@ -505,14 +502,14 @@ proc buildDefaultActions(rest: string; defaultIndex: var int): seq[Action] =
 
 proc updateDisplayRows(cmd: CmdKind; highlightQuery: string;
     defaultIndex: int) =
-  ## Sync state.filteredApps/matchSpans and maintain selection/preview state.
-  filteredApps.setLen(0)
-  matchSpans.setLen(0)
+  ## Sync ctx.filteredApps/ctx.matchSpans and maintain selection/preview state.
+  ctx.filteredApps.setLen(0)
+  ctx.matchSpans.setLen(0)
 
-  for act in actions:
-    filteredApps.add DisplayRow(text: act.label, iconName: act.iconName)
+  for act in ctx.actions:
+    ctx.filteredApps.add DisplayRow(text: act.label, iconName: act.iconName)
     if highlightQuery.len == 0:
-      matchSpans.add @[]
+      ctx.matchSpans.add @[]
     else:
       case act.kind
       of akRun:
@@ -521,47 +518,47 @@ proc updateDisplayRows(cmd: CmdKind; highlightQuery: string;
         let seg = if off < act.label.len: act.label[off .. ^1] else: ""
         var spansAbs: seq[(int, int)] = @[]
         for (s, l) in subseqSpans(highlightQuery, seg): spansAbs.add (off + s, l)
-        matchSpans.add spansAbs
+        ctx.matchSpans.add spansAbs
       of akPlaceholder:
-        matchSpans.add @[]
+        ctx.matchSpans.add @[]
       else:
-        matchSpans.add subseqSpans(highlightQuery, act.label)
+        ctx.matchSpans.add subseqSpans(highlightQuery, act.label)
 
-  if actions.len == 0:
+  if ctx.actions.len == 0:
     if cmd == ckTheme:
       endThemePreviewSession(false)
     else:
-      selectedIndex = 0
-      viewOffset = 0
+      ctx.selectedIndex = 0
+      ctx.viewOffset = 0
   else:
-    let maxIndex = actions.len - 1
+    let maxIndex = ctx.actions.len - 1
     var clamped = min(defaultIndex, maxIndex)
     if cmd == ckTheme and defaultIndex == 0:
-      clamped = min(selectedIndex, maxIndex)
-    selectedIndex = clamped
-    let visible = max(1, config.maxVisibleItems)
+      clamped = min(ctx.selectedIndex, maxIndex)
+    ctx.selectedIndex = clamped
+    let visible = max(1, ctx.config.maxVisibleItems)
     if clamped >= visible:
-      viewOffset = clamped - visible + 1
+      ctx.viewOffset = clamped - visible + 1
     else:
-      viewOffset = 0
+      ctx.viewOffset = 0
 
     if cmd == ckTheme:
-      if actions.len > 0 and actions[selectedIndex].kind == akTheme:
-        updateThemePreview(cmd == ckTheme, actions, selectedIndex)
+      if ctx.actions.len > 0 and ctx.actions[ctx.selectedIndex].kind == akTheme:
+        updateThemePreview(cmd == ckTheme, ctx.actions, ctx.selectedIndex)
       else:
         endThemePreviewSession(false)
     else:
       endThemePreviewSession(false)
 
-# ── Build actions & mirror to filteredApps ─────────────────────────────
+# ── Build ctx.actions & mirror to ctx.filteredApps ─────────────────────────────
 proc buildActions*() =
-  ## Populate `actions` based on `inputText`; mirror to GUI lists/spans.
-  if dmenuMode:
-    actions = buildDmenuActions(inputText)
-    updateDisplayRows(ckNone, inputText, 0)
+  ## Populate `ctx.actions` based on `ctx.inputText`; mirror to GUI lists/spans.
+  if ctx.dmenuMode:
+    ctx.actions = buildDmenuActions(ctx.inputText)
+    updateDisplayRows(ckNone, ctx.inputText, 0)
     return
 
-  let (cmd, rest, shortcutIdx, groupName) = parseCommand(inputText)
+  let (cmd, rest, shortcutIdx, groupName) = parseCommand(ctx.inputText)
   var defaultIndex = 0
   var nextActions: seq[Action] = @[]
 
@@ -580,7 +577,7 @@ proc buildActions*() =
   of ckRun:
     nextActions = buildRunActions(rest)
   of ckQuit:
-    shouldExit = true
+    ctx.shouldExit = true
     return
   else:
     discard
@@ -590,19 +587,19 @@ proc buildActions*() =
   elif nextActions.len == 0:
     nextActions.add Action(kind: akPlaceholder, label: "No matches", exec: "")
 
-  actions = nextActions
+  ctx.actions = nextActions
   updateDisplayRows(cmd, rest, defaultIndex)
 
 # ── Perform selected action ─────────────────────────────────────────────
 proc clearInput*() =
-  inputText.setLen(0)
-  lastInputChangeMs = gui.nowMs()
+  ctx.inputText.setLen(0)
+  ctx.lastInputChangeMs = gui.nowMs()
   buildActions()
 
 proc performAction*(a: Action) =
-  if dryRunMode:
+  if ctx.dryRunMode:
     stdout.write(a.exec & "\n")
-    shouldExit = true
+    ctx.shouldExit = true
     return
 
   var exitAfter = true ## default: exit after action
@@ -644,8 +641,8 @@ proc performAction*(a: Action) =
       gui.notifyStatus("Failed: " & a.label, 1600)
       exitAfter = false
   of akDmenu:
-    dmenuOutput = a.exec
-    dmenuAccepted = true
+    ctx.dmenuOutput = a.exec
+    ctx.dmenuAccepted = true
   of akShortcut:
     case a.shortcutMode
     of smUrl:
@@ -674,7 +671,7 @@ proc performAction*(a: Action) =
       exitAfter = false
   of akTheme:
     ## Apply and persist, but DO NOT reset selection or exit.
-    applyThemeAndColors(config, a.exec, doNotify = false, doRedraw = false)
+    applyThemeAndColors(ctx.config, a.exec, doNotify = false, doRedraw = false)
     saveLastTheme(configDir() / "nimlaunch.toml")
     endThemePreviewSession(true)
     clearInput()
@@ -683,44 +680,44 @@ proc performAction*(a: Action) =
   of akPlaceholder:
     exitAfter = false
   if a.kind == akDmenu:
-    shouldExit = true
+    ctx.shouldExit = true
   elif exitAfter:
-    shouldExit = true
+    ctx.shouldExit = true
 
 # ── Input/navigation helpers ───────────────────────────────────────────
 proc deleteLastInputChar*() =
-  if inputText.len > 0:
-    inputText.setLen(inputText.len - 1)
-    lastInputChangeMs = gui.nowMs()
+  if ctx.inputText.len > 0:
+    ctx.inputText.setLen(ctx.inputText.len - 1)
+    ctx.lastInputChangeMs = gui.nowMs()
     buildActions()
 
 proc activateCurrentSelection*() =
-  if selectedIndex in 0..<actions.len:
-    performAction(actions[selectedIndex])
+  if ctx.selectedIndex in 0..<ctx.actions.len:
+    performAction(ctx.actions[ctx.selectedIndex])
 
 proc moveSelectionBy*(step: int) =
-  if filteredApps.len == 0: return
-  var newIndex = selectedIndex + step
+  if ctx.filteredApps.len == 0: return
+  var newIndex = ctx.selectedIndex + step
   if newIndex < 0: newIndex = 0
-  if newIndex > filteredApps.len - 1: newIndex = filteredApps.len - 1
-  if newIndex == selectedIndex: return
-  selectedIndex = newIndex
-  if selectedIndex < viewOffset:
-    viewOffset = selectedIndex
-  elif selectedIndex >= viewOffset + config.maxVisibleItems:
-    viewOffset = selectedIndex - config.maxVisibleItems + 1
-    if viewOffset < 0: viewOffset = 0
-  updateThemePreview(parseCommand(inputText)[0] == ckTheme, actions, selectedIndex)
+  if newIndex > ctx.filteredApps.len - 1: newIndex = ctx.filteredApps.len - 1
+  if newIndex == ctx.selectedIndex: return
+  ctx.selectedIndex = newIndex
+  if ctx.selectedIndex < ctx.viewOffset:
+    ctx.viewOffset = ctx.selectedIndex
+  elif ctx.selectedIndex >= ctx.viewOffset + ctx.config.maxVisibleItems:
+    ctx.viewOffset = ctx.selectedIndex - ctx.config.maxVisibleItems + 1
+    if ctx.viewOffset < 0: ctx.viewOffset = 0
+  updateThemePreview(parseCommand(ctx.inputText)[0] == ckTheme, ctx.actions, ctx.selectedIndex)
 
 proc jumpToTop*() =
-  if filteredApps.len == 0: return
-  selectedIndex = 0
-  viewOffset = 0
-  updateThemePreview(parseCommand(inputText)[0] == ckTheme, actions, selectedIndex)
+  if ctx.filteredApps.len == 0: return
+  ctx.selectedIndex = 0
+  ctx.viewOffset = 0
+  updateThemePreview(parseCommand(ctx.inputText)[0] == ckTheme, ctx.actions, ctx.selectedIndex)
 
 proc jumpToBottom*() =
-  if filteredApps.len == 0: return
-  selectedIndex = filteredApps.len - 1
-  let start = filteredApps.len - config.maxVisibleItems
-  viewOffset = if start > 0: start else: 0
-  updateThemePreview(parseCommand(inputText)[0] == ckTheme, actions, selectedIndex)
+  if ctx.filteredApps.len == 0: return
+  ctx.selectedIndex = ctx.filteredApps.len - 1
+  let start = ctx.filteredApps.len - ctx.config.maxVisibleItems
+  ctx.viewOffset = if start > 0: start else: 0
+  updateThemePreview(parseCommand(ctx.inputText)[0] == ckTheme, ctx.actions, ctx.selectedIndex)

@@ -4,39 +4,39 @@
 import ./[state, settings]
 
 proc beginThemePreviewSession*() =
-  if not themePreviewActive:
-    themePreviewActive = true
-    themePreviewBaseTheme = config.themeName
-    themePreviewCurrent = config.themeName
+  if not ctx.themePreviewActive:
+    ctx.themePreviewActive = true
+    ctx.themePreviewBaseTheme = ctx.config.themeName
+    ctx.themePreviewCurrent = ctx.config.themeName
 
 proc endThemePreviewSession*(persist: bool) =
-  if not themePreviewActive:
+  if not ctx.themePreviewActive:
     return
   if persist:
-    themePreviewBaseTheme = config.themeName
-    themePreviewCurrent = config.themeName
+    ctx.themePreviewBaseTheme = ctx.config.themeName
+    ctx.themePreviewCurrent = ctx.config.themeName
   else:
-    if themePreviewBaseTheme.len > 0 and themePreviewCurrent.len > 0 and
-       themePreviewCurrent != themePreviewBaseTheme:
-      applyThemeAndColors(config, themePreviewBaseTheme, doRedraw = false)
-      themePreviewCurrent = themePreviewBaseTheme
-  themePreviewActive = false
+    if ctx.themePreviewBaseTheme.len > 0 and ctx.themePreviewCurrent.len > 0 and
+       ctx.themePreviewCurrent != ctx.themePreviewBaseTheme:
+      applyThemeAndColors(ctx.config, ctx.themePreviewBaseTheme, doRedraw = false)
+      ctx.themePreviewCurrent = ctx.themePreviewBaseTheme
+  ctx.themePreviewActive = false
 
 proc updateThemePreview*(isThemeCmd: bool; actions: seq[Action];
     selectedIndex: int) =
   if not isThemeCmd:
     return
-  if actions.len == 0:
+  if ctx.actions.len == 0:
     endThemePreviewSession(false)
     return
   beginThemePreviewSession()
-  if selectedIndex < 0 or selectedIndex >= actions.len:
+  if selectedIndex < 0 or selectedIndex >= ctx.actions.len:
     return
-  let act = actions[selectedIndex]
+  let act = ctx.actions[selectedIndex]
   if act.kind != akTheme:
     return
   let name = act.exec
-  if themePreviewCurrent == name:
+  if ctx.themePreviewCurrent == name:
     return
-  applyThemeAndColors(config, name, doRedraw = false)
-  themePreviewCurrent = name
+  applyThemeAndColors(ctx.config, name, doRedraw = false)
+  ctx.themePreviewCurrent = name

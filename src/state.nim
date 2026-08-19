@@ -141,36 +141,48 @@ type
     borderColorHex*: string
     matchFgColorHex*: string ## leave empty to inherit Config.matchFgColorHex
 
-# ── Runtime state ───────────────────────────────────────────────────────
-var
-  config*: Config                   ## parsed launcher configuration
-  allApps*: seq[DesktopApp]
-  filteredApps*: seq[DisplayRow]    ## full list & current view slice
-  inputText*: string                ## raw user input
-  lastInputChangeMs*: int64         ## updated on each keystroke
-  selectedIndex*: int               ## index into `filteredApps`
-  viewOffset*: int                  ## first visible item row
-  shouldExit*: bool
-  recentApps*: seq[string]          ## most-recent-first app names
-  appUsage*: Table[string, AppUsage]
-  themeList*: seq[Theme]
-  matchSpans*: seq[seq[(int, int)]] ## per row: (start,len) spans to highlight
-  shortcuts*: seq[Shortcut]
-  groupQueryModes*: Table[string, GroupQueryMode]
-  configFilesLoaded*: bool = false
-  configFilesCache*: seq[DesktopApp] = @[]
-  vim*: VimCommandState
-  themePreviewActive*: bool = false ## true while :t list is temporarily previewing themes
-  themePreviewBaseTheme*: string
-  themePreviewCurrent*: string
-  dmenuMode*: bool = false
-  dmenuItems*: seq[DmenuItem] = @[]
-  dmenuAccepted*: bool = false
-  dmenuOutput*: string
-  listThemesMode*: bool = false
-  dryRunMode*: bool = false
-  verboseMode*: bool = false
-  configOverridePath*: string = ""
+  AppContext* = object
+    config*: Config
+    allApps*: seq[DesktopApp]
+    filteredApps*: seq[DisplayRow]
+    inputText*: string
+    lastInputChangeMs*: int64
+    selectedIndex*: int
+    viewOffset*: int
+    shouldExit*: bool
+    recentApps*: seq[string]
+    appUsage*: Table[string, AppUsage]
+    themeList*: seq[Theme]
+    matchSpans*: seq[seq[(int, int)]]
+    shortcuts*: seq[Shortcut]
+    groupQueryModes*: Table[string, GroupQueryMode]
+    configFilesLoaded*: bool
+    configFilesCache*: seq[DesktopApp]
+    vim*: VimCommandState
+    themePreviewActive*: bool
+    themePreviewBaseTheme*: string
+    themePreviewCurrent*: string
+    dmenuMode*: bool
+    dmenuItems*: seq[DmenuItem]
+    dmenuAccepted*: bool
+    dmenuOutput*: string
+    listThemesMode*: bool
+    dryRunMode*: bool
+    verboseMode*: bool
+    configOverridePath*: string
+    actions*: seq[Action]
+
+var ctx*: AppContext
+ctx.configFilesLoaded = false
+ctx.configFilesCache = @[]
+ctx.themePreviewActive = false
+ctx.dmenuMode = false
+ctx.dmenuItems = @[]
+ctx.dmenuAccepted = false
+ctx.listThemesMode = false
+ctx.dryRunMode = false
+ctx.verboseMode = false
+ctx.configOverridePath = ""
 
 # ── Constants ───────────────────────────────────────────────────────────
 const

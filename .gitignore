@@ -3,3 +3,5 @@ nimble.paths
 nimbledeps
 nimlaunch
 .agents/
+tests/t*
+!tests/t*.nim

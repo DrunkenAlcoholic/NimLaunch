@@ -86,11 +86,11 @@ proc openPathWithFallback*(path: string): bool =
   false
 
 proc chooseTerminal*(): string =
-  ## Pick a terminal emulator: prefer config.terminalExe, then $TERMINAL, then fallbacks.
-  if config.terminalExe.len > 0:
-    let tokens = tokenize(config.terminalExe)
+  ## Pick a terminal emulator: prefer ctx.config.terminalExe, then $TERMINAL, then fallbacks.
+  if ctx.config.terminalExe.len > 0:
+    let tokens = tokenize(ctx.config.terminalExe)
     if tokens.len > 0 and whichExists(tokens[0]):
-      return config.terminalExe
+      return ctx.config.terminalExe
   let envTerm = getEnv("TERMINAL")
   if envTerm.len > 0:
     let tokens = tokenize(envTerm)

@@ -52,14 +52,15 @@ proc loadApplications*() =
         if c.formatVersion == CacheFormatVersion and
            c.appDirs == appDirs and c.dirMtimes == dirMtimes and
            c.dirSignatures == dirSignatures:
-          allApps = c.apps
-          filteredApps = @[]
-          matchSpans = @[]
+          ctx.allApps = c.apps
+          ctx.filteredApps = @[]
+          ctx.matchSpans = @[]
           return
       else:
-        echo "Cache invalid — rescanning …"
-    except CatchableError as e:
-      echo "Cache miss — rescanning (", e.name, ": ", e.msg, ")"
+        if ctx.verboseMode: echo "Cache invalid — rescanning …"
+    except IOError, ValueError, OSError:
+        let e = getCurrentException()
+        if ctx.verboseMode: echo "Cache miss — rescanning (", e.name, ": ", e.msg, ")"
 
   var dedup = initTable[string, DesktopApp]()
   for dir in appDirs:
@@ -78,16 +79,17 @@ proc loadApplications*() =
         if not dedup.hasKey(key) or (app.hasIcon and not dedup[key].hasIcon):
           dedup[key] = app
 
-  allApps = dedup.values.toSeq
-  allApps.sort(proc(a, b: DesktopApp): int = cmpIgnoreCase(a.name, b.name))
-  filteredApps = @[]
-  matchSpans = @[]
+  ctx.allApps = dedup.values.toSeq
+  ctx.allApps.sort(proc(a, b: DesktopApp): int = cmpIgnoreCase(a.name, b.name))
+  ctx.filteredApps = @[]
+  ctx.matchSpans = @[]
   try:
     createDir(cacheBase)
     writeFile(cacheFile, $ %CacheData(formatVersion: CacheFormatVersion,
                                       appDirs: appDirs,
                                       dirMtimes: dirMtimes,
                                       dirSignatures: dirSignatures,
-                                      apps: allApps))
-  except CatchableError:
-    echo "Warning: cache not saved."
+                                      apps: ctx.allApps))
+  except IOError, OSError:
+    let e = getCurrentException()
+    if ctx.verboseMode: echo "Warning: cache not saved (", e.name, ": ", e.msg, ")"

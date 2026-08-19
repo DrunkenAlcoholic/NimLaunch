@@ -89,7 +89,7 @@ cd NimLaunch
 nimble build          # package/default build -> ./nimlaunch
 nimble -y nimDebug    # debug build -> ./bin/nimlaunch
 nimble -y nimRelease  # release build for current CPU (fastest on this machine) -> ./bin/nimlaunch
-nimble -y nimPortable  # portable + smaller release build (generic x86_64 baseline) -> ./bin/nimlaunch
+nimble -y nimGeneric  # portable + smaller release build (generic x86_64 baseline) -> ./bin/nimlaunch
 ```
 
 For a more portable release build (via Zig/clang), use:
@@ -97,7 +97,7 @@ For a more portable release build (via Zig/clang), use:
 ```bash
 nimble -y zigDebug    # debug build -> ./bin/nimlaunch
 nimble -y zigRelease  # release build for current CPU via Zig/clang -> ./bin/nimlaunch
-nimble -y zigPortable  # portable + smaller Zig/clang release build (generic x86_64 baseline) -> ./bin/nimlaunch
+nimble -y zigGeneric  # portable + smaller Zig/clang release build (generic x86_64 baseline) -> ./bin/nimlaunch
 ```
 
 Use `nimble c` from project root if you need custom compiler flags:
@@ -125,7 +125,7 @@ still rasterizes glyphs in software.
 - Build fails with `cannot open file: sdl3` or `parsetoml`: make sure you are
   building from project root so `config.nims` can add the vendored `packages/`
   paths.
-- `nimble nimPortable` or `nimble zigPortable` is unknown: update to the current
+- `nimble nimGeneric` or `nimble zigGeneric` is unknown: update to the current
   `.nimble` file.
 - `:s` search feels slow: install `fd` and/or `locate` so search avoids the
   slower `$HOME` fallback walk.
