@@ -27,11 +27,12 @@ Fields:
 - **`highlightBgColorHex`**: Selected row background color.
 - **`highlightFgColorHex`**: Selected row text color.
 - **`borderColorHex`**: Border color.
-- **`matchFgColorHex`**: Color used for matching characters in search results.
+- **`matchFgColorHex`**: Color used for matching characters. An empty value inherits the base match color.
 
-All colors must be valid hex codes in `#RRGGBB` format.
+Non-empty colors use `#RRGGBB` format. Invalid values fall back to built-in
+rendering colors.
 
-## Selecting A Theme
+## Selecting a Theme
 
 Use the built-in theme selector by typing:
 
@@ -59,7 +60,8 @@ When a theme is accepted through the `:t` selector, NimLaunch writes that value 
 Common causes if a theme change does not persist:
 - The configuration file is not writable.
 - The configuration file contains invalid TOML syntax.
-- The saved theme name does not exist in the `[[themes]]` list.
+- The configuration cannot be updated after an unavailable saved theme is reset
+  to the first configured theme.
 
 If the TOML is invalid, NimLaunch prints a startup parse warning and falls back to built-in defaults for that session.
 
@@ -91,7 +93,7 @@ Copy and paste these blocks into your `~/.config/nimlaunch/nimlaunch.toml` to us
 
 ```toml
 [[themes]]
-name                = "Arstotzka"   
+name                = "Arstotzka"
 bgColorHex          = "#211f1e"
 fgColorHex          = "#edebe6"
 highlightBgColorHex = "#292725"
@@ -1156,7 +1158,7 @@ matchFgColorHex     = "#ff6a38"
 
 The generated default theme set is embedded in:
 
-- [`src/state.nim`](../src/state.nim)
+- [`src/default_config.nim`](../src/default_config.nim)
 
 The checked-in sample config lives at:
 

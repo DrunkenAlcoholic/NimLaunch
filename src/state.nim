@@ -167,6 +167,7 @@ type
     dmenuItems*: seq[DmenuItem]
     dmenuAccepted*: bool
     dmenuOutput*: string
+    dmenuPrompt*: string
     listThemesMode*: bool
     dryRunMode*: bool
     verboseMode*: bool
@@ -180,6 +181,7 @@ ctx.themePreviewActive = false
 ctx.dmenuMode = false
 ctx.dmenuItems = @[]
 ctx.dmenuAccepted = false
+ctx.dmenuPrompt = ""
 ctx.listThemesMode = false
 ctx.dryRunMode = false
 ctx.verboseMode = false

@@ -17,7 +17,7 @@ loads PNG/SVG icons through the SDL3 stack.
 ![NimLaunch screenshot](screenshots/NimLaunch-SDL2.gif)
 
 ## Features
-- **Zero-Copy Fuzzy Matching:** Incredibly fast app search with typo tolerance, powered by `openArray[char]` zero-allocation string slicing.
+- **Typo-tolerant fuzzy matching:** Allocation-conscious application search with substring and transposition matching.
 - **Asynchronous Icon Engine:** A background worker decodes PNG/SVG desktop icons without disk I/O on the main UI thread.
 - **Application State Caching:** Parsed `.desktop` entries are cached as JSON to avoid unnecessary rescans at startup.
 - Prefix commands: `:t`, `:c`, `:s`, `:r`, `!`, and custom groups.
@@ -56,12 +56,12 @@ paru -S nimlaunch-bin
 > Optional helpers:
 > - `fd` and/or `locate` for faster `:s` file search
 
-### Archlinux
+### Arch Linux
 ```bash
 sudo pacman -S sdl3 sdl3_ttf sdl3_image ttf-dejavu --needed
 ```
 
-### Ubuntu
+### Ubuntu releases with SDL3 development packages (including 25.10)
 ```bash
 sudo apt install libsdl3-dev libsdl3-ttf-dev libsdl3-image-dev fonts-dejavu-core
 ```
@@ -101,6 +101,9 @@ nimble -y zigRelease  # release build for current CPU via Zig/clang -> ./bin/nim
 nimble -y zigGeneric  # portable + smaller Zig/clang release build (generic x86_64 baseline) -> ./bin/nimlaunch
 ```
 
+The native tasks require a C compiler. The Zig tasks additionally require
+`zig` on `PATH`; the included `zigcc` wrapper is selected automatically.
+
 Use `nimble c` from project root if you need custom compiler flags:
 
 ```bash
@@ -135,10 +138,9 @@ still rasterizes glyphs in software.
   it, for example `printf "one\\ntwo\\n" | nimlaunch --dmenu`.
 - Text looks wrong or too small: set `[font].fontname` to an installed font and
   size (e.g., `"Dejavu:size=16"`).
-- Wayland/Niri black padding or delayed repaint: build with
-  `nimble c --threads:on --mm:orc -d:nimlaunchWindowDebug --nimcache:/tmp/nimlaunch_dbg_cache -o:/tmp/nimlaunch_dbg src/nimlaunch.nim`
-  and run `/tmp/nimlaunch_dbg` to log window events + redraw timing.
-- Theme changes do not persist: verify `~/.config/nimlaunch/nimlaunch.toml`
+- Wayland/Niri black padding or delayed repaint: use a debug build with
+  `-d:nimlaunchWindowDebug` to log window events and redraw timing.
+- Theme changes do not persist: verify the NimLaunch configuration file
   is writable.
 
 ## Command Line Flags
@@ -147,7 +149,9 @@ still rasterizes glyphs in software.
 - `--list-themes`: Print all available themes and exit.
 - `--verbose`: Dump internal metrics (uptime, cache sizes, parsing stats) to standard error upon closing.
 - `--dmenu`: Turns NimLaunch into a generic selector for stdin-provided items.
-- `--dry-run`: Prints the command or URL that would be executed and exits without running it. Highly useful for debugging shortcuts and `.desktop` files.
+- `--prompt`, `-p`: Override the prompt when using `--dmenu`.
+- `--dry-run`: Prints the selected raw action without running it. Desktop-entry field codes are not expanded.
+- `--help`, `-h`: Print command-line usage and exit.
 
 
 ## Quick Reference
@@ -173,17 +177,18 @@ Core controls:
 | *none* | `fire` | Regular app search; rankings favour prefixes, recent launches, and persistent usage |
 | `:t` | `:t nord` | Browse themes; Up/Down preview, Enter to keep selection |
 | `:s` | `:s notes` | Search files (`fd` → `locate` → bounded `$HOME` walk) |
-| `:c` | `:c sway` | Match files inside `~/.config` and open with the default handler |
+| `:c` | `:c sway` | Match files inside the XDG configuration directory and open with the default handler |
 | `:r` | `:r htop` | Run a shell command inside your preferred terminal |
 | `:q`, `:quit` | `:q` | Exit NimLaunch immediately from the command bar |
 | `!` | `!htop` | Shorthand for `:r` without the colon |
 | `:<group>` | `:sys lock` | Run grouped shortcuts (for example a `sys` group for session/power actions) |
 
 ## Configuration
-Config path: `~/.config/nimlaunch/nimlaunch.toml` (auto-generated on first run).
+Config path: `${XDG_CONFIG_HOME:-~/.config}/nimlaunch/nimlaunch.toml`
+(auto-generated on first run).
 
-We provide an `examples/` directory containing powerful showcase integrations:
-- `examples/nimlaunch.toml` - A massive, feature-rich sample configuration file containing Calculator snippets, Window Switchers, AI groupings, and more.
+We provide an `examples/` directory containing showcase integrations:
+- `examples/nimlaunch.toml` - A larger sample configuration with calculator snippets, window switchers, grouped actions, and more.
 - `examples/scripts/` - Bash scripts demonstrating `--dmenu` and native Rofi icon injection.
 
 For the full config layout, field descriptions, theme handling, and generated

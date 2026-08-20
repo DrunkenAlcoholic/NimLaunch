@@ -1,6 +1,14 @@
 # Configuration
 
-NimLaunch reads its configuration from `~/.config/nimlaunch/nimlaunch.toml`. If the file does not exist, NimLaunch generates one on the first run from the embedded default template. If the file contains invalid TOML, NimLaunch ignores it for the current session, prints a parse error on startup, and uses built-in defaults.
+NimLaunch reads its configuration from
+`${XDG_CONFIG_HOME:-~/.config}/nimlaunch/nimlaunch.toml`. If the file does not
+exist, NimLaunch generates one on the first run from the embedded default
+template. If it contains invalid TOML, NimLaunch prints a parse error and uses
+built-in defaults for that session.
+
+Application metadata is cached under
+`${XDG_CACHE_HOME:-~/.cache}/nimlaunch`. Desktop entries are discovered using
+`XDG_DATA_HOME` and `XDG_DATA_DIRS`, with their standard defaults.
 
 ## Layout
 
@@ -32,13 +40,13 @@ display = 0
 pollIntervalMs = 10
 ```
 
-- **`width`**: Launcher width in pixels.
+- **`width`**: Launcher width in pixels, clamped to 200–4000.
 - **`opacity`**: Float between `0.1` and `1.0`. Note that some compositors may ignore this setting.
-- **`max_visible_items`**: Number of rows before scrolling begins.
+- **`max_visible_items`**: Number of rows before scrolling begins; values below 1 become 1.
 - **`center`**: If `true`, NimLaunch ignores `position_x` and centers the window.
 - **`position_x`**, **`position_y`**: Used only when `center` is `false`.
 - **`vertical_align`**: Used only when centered. Valid values are `top`, `center`, and `one-third`.
-- **`display`**: Monitor index used when centered.
+- **`display`**: Monitor index used when centered; negative values become 0.
 - **`pollIntervalMs`**: Sleep duration in milliseconds per event loop, clamped to 1–1000. A higher value lowers CPU usage but decreases responsiveness (default: 10).
 
 ## Font
@@ -83,7 +91,8 @@ Specifies the terminal emulator used by `:r` and `!` commands. Set this to your 
 width = 2
 ```
 
-Specifies the border width in pixels. Set to `0` to disable the border completely.
+Specifies the border width in pixels. It is clamped to 0–64 and reduced further
+when necessary to fit the window. Set it to `0` to disable the border.
 
 ## Icons
 

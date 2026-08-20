@@ -5,7 +5,8 @@ NimLaunch supports two related configuration concepts for organizing commands:
 - **Shortcuts**: Actions triggered by a prefix or by selecting a grouped entry.
 - **Groups**: Named collections used to organize shortcuts.
 
-These are declared in `~/.config/nimlaunch/nimlaunch.toml`.
+These are declared in
+`${XDG_CONFIG_HOME:-~/.config}/nimlaunch/nimlaunch.toml`.
 
 ## Shortcut Fields
 
@@ -19,13 +20,13 @@ base   = "https://www.google.com/search?q={query}"
 mode   = "url"
 ```
 
-- **`prefix`**: The text typed to trigger the shortcut.
+- **`prefix`**: The text typed to trigger the shortcut. Surrounding colons are optional; names are normalized to lowercase.
 - **`label`**: The text shown in the UI before your query.
 - **`base`**: The URL, shell command, or file path template.
-- **`mode`**: The action type, which can be `url`, `shell`, or `file`.
+- **`mode`**: The action type: `url` (default), `shell`, or `file`.
 - **`group`**: An optional group name to attach this shortcut to (e.g., `sys` or `media`).
-- **`run_mode`**: For shell actions, specifies either `terminal` or `spawn`.
-- **`stay_open`**: If `true`, NimLaunch remains open after running the action.
+- **`run_mode`**: For shell actions, specifies `terminal` (default) or `spawn`.
+- **`stay_open`**: If `true`, NimLaunch remains open after a successful shortcut action.
 
 ## Prefix Shortcuts
 
@@ -41,9 +42,14 @@ mode   = "url"
 
 Usage: `:w nim language`
 
-The `{query}` placeholder is replaced with the typed query text. 
+The `{query}` placeholder is replaced with the typed query text. Without the
+placeholder, the query is appended directly, so include any required separator
+at the end of `base`.
 
 > **Note on Shell Commands:** When `mode = "shell"`, NimLaunch automatically wraps `{query}` in shell-safe single quotes to prevent command injection. Do not wrap `{query}` in quotes in your configuration file.
+
+URL queries are percent-encoded, shell queries are shell-quoted, and file
+queries are inserted as paths before `~` expansion.
 
 ## Shortcut Modes
 
@@ -83,9 +89,9 @@ mode   = "file"
 
 ## Groups
 
-Groups act as named collections for shortcuts, allowing a single prefix to expose a menu of related actions. 
+Groups act as named collections for shortcuts, allowing a single prefix to expose a menu of related actions.
 
-**Important:** Group definitions are completely optional. If you assign a shortcut to a group (e.g., `group = "scripts"`), NimLaunch automatically registers that group and uses the default `filter` behavior. 
+**Important:** Group definitions are completely optional. If you assign a shortcut to a group (e.g., `group = "scripts"`), NimLaunch automatically registers that group and uses the default `filter` behavior.
 
 The only time you must explicitly declare a `[[groups]]` block is when you want to change its `query_mode` from `"filter"` to `"pass"`.
 
@@ -113,7 +119,7 @@ A group can have one of two `query_mode` settings: `filter` or `pass`.
 
 ### filter (Default)
 
-NimLaunch uses the typed text to filter the items inside the group. This is the default behavior and does not require an explicit `[[groups]]` block. 
+NimLaunch uses the typed text to filter the items inside the group. This is the default behavior and does not require an explicit `[[groups]]` block.
 
 Typing `:sys re` narrows the group to actions matching "re" (such as "Reboot"). This is ideal when choosing between a set of fixed actions.
 

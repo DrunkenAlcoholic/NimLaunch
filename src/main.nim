@@ -4,12 +4,30 @@ import ./[state, app_core, gui, utils, settings, search, input, apps_cache, them
 
 const Version = "0.11.3"
 
+# Print the command-line synopsis and available options.
+proc printUsage() =
+  echo """Usage: nimlaunch [options]
+
+Options:
+  -c, --config PATH  Use an alternate configuration file
+  -p, --prompt TEXT  Override the prompt in --dmenu mode
+      --dmenu         Select an item read from standard input
+      --dry-run       Print the selected raw action without executing it
+      --list-themes   Print configured theme names and exit
+      --verbose       Print runtime metrics on shutdown
+  -v, --version       Print the version and exit
+  -h, --help          Show this help text and exit"""
+
+# Parse command-line options into the shared startup context.
 proc configureStartupMode() =
   var i = 1
   while i <= paramCount():
     let arg = paramStr(i)
     if arg == "--version" or arg == "-v":
       echo "NimLaunch v", Version
+      quit 0
+    elif arg == "--help" or arg == "-h":
+      printUsage()
       quit 0
     elif arg == "--list-themes":
       ctx.listThemesMode = true
@@ -19,14 +37,26 @@ proc configureStartupMode() =
       ctx.verboseMode = true
     elif arg == "--dmenu":
       ctx.dmenuMode = true
+    elif arg == "--prompt" or arg == "-p":
+      if i < paramCount():
+        ctx.dmenuPrompt = paramStr(i + 1)
+        inc i
+      else:
+        quit "Error: --prompt requires a text argument."
     elif arg == "--config" or arg == "-c":
       if i < paramCount():
         ctx.configOverridePath = paramStr(i + 1)
         inc i
       else:
         quit "Error: --config requires a path argument."
+    else:
+      quit "Error: unknown option '" & arg & "'. Use --help for usage."
     inc i
 
+  if ctx.dmenuPrompt.len > 0 and not ctx.dmenuMode:
+    quit "Error: --prompt can only be used with --dmenu."
+
+# Read non-empty dmenu entries and extract optional Rofi icon metadata.
 proc loadDmenuInput() =
   let raw = stdin.readAll()
   ctx.dmenuItems.setLen(0)
@@ -68,6 +98,8 @@ proc main*() =
     echo "NimLaunch is already running."
     quit 0
   initLauncherConfig()
+  if ctx.dmenuPrompt.len > 0:
+    ctx.config.prompt = ctx.dmenuPrompt
 
   if ctx.listThemesMode:
     for th in ctx.themeList:

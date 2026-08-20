@@ -28,7 +28,7 @@ cursor = "_"                      # Cursor character displayed after query text
 vim_mode = false                  # true enables Vim-style modes/hjkl navigation
 
 [terminal]
-program = "gnome-terminal"        # Terminal emulator for slash commands (/ ...)
+program = "gnome-terminal"        # Terminal emulator for :r and ! commands
                                   # If not found, NimLaunch will fall back to a default
 
 [border]

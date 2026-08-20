@@ -1,6 +1,7 @@
 nimble.develop
 nimble.paths
 nimbledeps
+/nimcache/
 nimlaunch
 .agents/
 release_notes.md
