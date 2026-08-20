@@ -2,7 +2,7 @@ import std/[os, strutils, syncio]
 import sdl3
 import ./[state, app_core, gui, utils, settings, search, input, apps_cache, theme_session]
 
-const Version = "0.11.1"
+const Version = "0.11.2"
 
 proc configureStartupMode() =
   var i = 1
@@ -19,12 +19,12 @@ proc configureStartupMode() =
       ctx.verboseMode = true
     elif arg == "--dmenu":
       ctx.dmenuMode = true
-    elif arg == "--ctx.config" or arg == "-c":
+    elif arg == "--config" or arg == "-c":
       if i < paramCount():
         ctx.configOverridePath = paramStr(i + 1)
         inc i
       else:
-        quit "Error: --ctx.config requires a path argument."
+        quit "Error: --config requires a path argument."
     inc i
 
 proc loadDmenuInput() =

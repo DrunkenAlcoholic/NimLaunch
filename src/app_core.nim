@@ -1,4 +1,4 @@
-## app_core.nim — NimLaunch application logic for search, ctx.actions, and launch flow.
+## app_core.nim — NimLaunch application logic for search, actions, and launch flow.
 
 import std/[os, strutils, tables, sets, uri,
             algorithm, heapqueue, exitprocs]
@@ -61,11 +61,13 @@ proc pickIcon(app: DesktopApp): string =
   base
 
 proc pickDesktopActionIcon(app: DesktopApp; action: DesktopEntryAction): string =
+  ## Select the icon for a desktop secondary action or fallback to the app icon.
   if action.icon.len > 0:
     return action.icon
   pickIcon(app)
 
 proc addDesktopActionRows(rows: var seq[Action]; app: DesktopApp) =
+  ## Append desktop action rows for an application to the action list.
   for desktopAction in app.desktopActions:
     let iconName = if ctx.config.showIcons: pickDesktopActionIcon(app, desktopAction) else: ""
     rows.add Action(
@@ -84,6 +86,7 @@ when defined(posix):
     LOCK_UN = 8.cint
 
   proc releaseSingleInstanceLock() =
+    ## Release advisory file lock and cleanup lock file descriptor.
     if lockFd >= 0:
       discard flock(lockFd, LOCK_UN)
       discard close(lockFd)
@@ -122,6 +125,7 @@ when defined(posix):
     true
 else:
   proc releaseSingleInstanceLock() =
+    ## Clean up lock file sentinel.
     if lockFilePath.len > 0 and fileExists(lockFilePath):
       try:
         removeFile(lockFilePath)
@@ -147,7 +151,7 @@ else:
       discard
     true
 
-# ── Command parsing / ctx.actions helpers ───────────────────────────────────
+# ── Command parsing / action helpers ───────────────────────────────────
 type CmdKind* = enum
   ## Recognised input prefixes.
   ckNone,     # no special prefix
@@ -155,7 +159,7 @@ type CmdKind* = enum
   ckConfig,   # `c:`
   ckSearch,   # `s:` fast file search
   ckGroup,    # user-defined group prefix
-  ckShortcut, # custom ctx.shortcuts (e.g. :g, :wiki)
+  ckShortcut, # custom shortcuts (e.g. :g, :wiki)
   ckRun,      # raw `r:` command
   ckQuit      # `:q` or `:quit` to exit
 
@@ -172,9 +176,9 @@ proc takePrefix(input, pfx: string; rest: var string): bool =
   false
 
 proc parseCommand*(inputText: string): (CmdKind, string, int, string) =
-  ## Parse *ctx.inputText* and return the command kind, remainder, shortcut index, and group name.
-  if ctx.inputText.len > 0 and ctx.inputText[0] == ':':
-    var body = ctx.inputText[1 .. ^1]
+  ## Parse *inputText* and return the command kind, remainder, shortcut index, and group name.
+  if inputText.len > 0 and inputText[0] == ':':
+    var body = inputText[1 .. ^1]
     var rest = ""
     let sep = body.find({' ', '\t'})
     var keyword = body
@@ -198,12 +202,12 @@ proc parseCommand*(inputText: string): (CmdKind, string, int, string) =
           return (ckShortcut, rest, i, "")
       if ctx.groupQueryModes.hasKey(norm):
         return (ckGroup, rest, -1, norm)
-      return (ckNone, ctx.inputText, -1, "")
+      return (ckNone, inputText, -1, "")
 
   var rest: string
-  if takePrefix(ctx.inputText, "!", rest):
+  if takePrefix(inputText, "!", rest):
     return (ckRun, rest.strip(), -1, "")
-  (ckNone, ctx.inputText, -1, "")
+  (ckNone, inputText, -1, "")
 
 # ── Applications discovery (.desktop) ───────────────────────────────────
 proc substituteQuery(pattern, value: string): string =
@@ -280,14 +284,14 @@ proc groupQueryMode(name: string): GroupQueryMode =
   if ctx.groupQueryModes.hasKey(name): ctx.groupQueryModes[name] else: gqmFilter
 
 proc buildGroupActions(groupName, rest: string): seq[Action] =
-  ## Build grouped ctx.actions. Query mode controls pass-through vs filter.
+  ## Build grouped actions. Query mode controls pass-through vs filter.
   var entries: seq[Shortcut] = @[]
   for sc in ctx.shortcuts:
     if sc.group == groupName:
       entries.add sc
   if entries.len == 0:
     return @[Action(kind: akPlaceholder,
-                    label: "No ctx.actions in group",
+                    label: "No actions in group",
                     exec: "")]
 
   if groupQueryMode(groupName) == gqmPass:
@@ -329,9 +333,8 @@ proc buildRunActions(rest: string): seq[Action] =
   @[Action(kind: akRun, label: "Run: " & rest, exec: rest, iconName: "")]
 
 proc pathDepth(path: string): int =
-  for ch in path:
-    if ch == '/':
-      inc result
+  ## Count directory separators in path.
+  path.count('/')
 
 proc scoreSearchCandidate(query: string; queryLower: string; fileName: string;
                           path: string; homeDir: string; homeDepth: int): int =
@@ -672,7 +675,8 @@ proc performAction*(a: Action) =
   of akTheme:
     ## Apply and persist, but DO NOT reset selection or exit.
     applyThemeAndColors(ctx.config, a.exec, doNotify = false, doRedraw = false)
-    saveLastTheme(configDir() / "nimlaunch.toml")
+    let targetPath = if ctx.configOverridePath.len > 0: ctx.configOverridePath else: configDir() / "nimlaunch.toml"
+    saveLastTheme(targetPath)
     endThemePreviewSession(true)
     clearInput()
     gui.redrawWindow()

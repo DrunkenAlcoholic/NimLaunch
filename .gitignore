@@ -3,5 +3,7 @@ nimble.paths
 nimbledeps
 nimlaunch
 .agents/
+release_notes.md
+release_notes*
 tests/t*
 !tests/t*.nim

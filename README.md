@@ -86,7 +86,8 @@ cd NimLaunch
 ```
 
 ```bash
-nimble build          # package/default build -> ./nimlaunch
+nimble build          # default release build -> ./bin/nimlaunch
+nimble test           # run all automated test suites
 nimble -y nimDebug    # debug build -> ./bin/nimlaunch
 nimble -y nimRelease  # release build for current CPU (fastest on this machine) -> ./bin/nimlaunch
 nimble -y nimGeneric  # portable + smaller release build (generic x86_64 baseline) -> ./bin/nimlaunch
@@ -107,7 +108,6 @@ nimble c -d:release -d:lto --opt:speed --mm:orc --threads:on -o:./bin/nimlaunch 
 ```
 
 ```bash
-./nimlaunch
 ./bin/nimlaunch
 ```
 

@@ -100,7 +100,7 @@ Theme structure, selection, persistence, and custom theme examples are detailed 
 
 ## Generated Defaults
 
-The embedded template used for first-run generation is located in [`src/state.nim`](../src/state.nim). This template serves as the reference for the generated configuration, default groups, default shortcuts, and bundled themes.
+The embedded template used for first-run generation is located in [`src/default_config.nim`](../src/default_config.nim). This template serves as the reference for the generated configuration, default groups, default shortcuts, and bundled themes.
 
 The checked-in [example config](../examples/nimlaunch.toml) provides a richer public sample built from the same format.
 

@@ -1,11 +1,12 @@
 # Package
 
-version       = "0.11.1"
+version       = "0.11.2"
 author        = "Vyrnexis"
 description   = "NimLaunch in SDL3 for native X11 and Wayland"
 license       = "MIT"
 srcDir        = "src"
 bin           = @["nimlaunch"]
+binDir        = "bin"
 
 
 # Dependencies
@@ -51,4 +52,14 @@ task zigGeneric, "Release build with Zig compiler (universal)":
 task zigDebug, "Debug build with Zig compiler":
   mkDir("bin")
   runBuild(ZigDebugFlags)
+
+task test, "Run all test suites":
+  exec "nim c -r tests/tfuzzy.nim"
+  exec "nim c -r tests/tparser.nim"
+  exec "nim c -r tests/tconfig.nim"
+
+task clean, "Remove build artifacts and caches":
+  rmDir("bin")
+  rmDir("nimcache")
+
 task build, "Default build": nimReleaseTask()

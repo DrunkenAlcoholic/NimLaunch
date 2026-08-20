@@ -1,4 +1,4 @@
-## settings.nim — ctx.config and theme loading for NimLaunch.
+## settings.nim — config and theme loading for NimLaunch.
 
 import std/[os, strutils, math, options, tables]
 import parsetoml as toml
@@ -124,13 +124,13 @@ proc saveLastTheme*(cfgPath: string) =
       if ctx.verboseMode: echo "saveLastTheme warning: unable to write ", cfgPath, " (", e.name, "): ", e.msg
 
 proc loadShortcutsSection(tbl: toml.TomlValueRef; cfgPath: string) =
-  ## Populate `ctx.shortcuts` from `[[ctx.shortcuts]]` entries in *tbl*.
+  ## Populate `ctx.shortcuts` from `[[shortcuts]]` entries in *tbl*.
   ctx.shortcuts = @[]
-  if not tbl.hasKey("ctx.shortcuts"): return
+  if not tbl.hasKey("shortcuts"): return
 
   try:
     var invalidCount = 0
-    for scVal in tbl["ctx.shortcuts"].getElems():
+    for scVal in tbl["shortcuts"].getElems():
       try:
         let scTbl = scVal.getTable()
         let prefixRaw = scTbl.getOrDefault("prefix").getStr("")
@@ -146,7 +146,7 @@ proc loadShortcutsSection(tbl: toml.TomlValueRef; cfgPath: string) =
         if base.len == 0:
           continue
         if group.len > 0:
-          prefix.setLen(0) # groups use their own prefix; ignore per-entry prefixes
+          prefix.setLen(0)
         if prefix.len == 0 and group.len == 0:
           continue
 
@@ -173,9 +173,9 @@ proc loadShortcutsSection(tbl: toml.TomlValueRef; cfgPath: string) =
         inc invalidCount
     if invalidCount > 0:
       echo "NimLaunch warning: skipped ", invalidCount,
-          " invalid [[ctx.shortcuts]] entries in ", cfgPath
+          " invalid [[shortcuts]] entries in ", cfgPath
   except CatchableError:
-    echo "NimLaunch warning: ignoring invalid [[ctx.shortcuts]] entries in ", cfgPath
+    echo "NimLaunch warning: ignoring invalid [[shortcuts]] entries in ", cfgPath
 
 proc parseGroupQueryMode(modeStr: string): GroupQueryMode =
   case modeStr
@@ -244,9 +244,9 @@ proc initLauncherConfig*() =
     try:
       createDir(parentDir(cfgPath))
       writeFile(cfgPath, defaultToml)
-      echo "Created default ctx.config at ", cfgPath
+      echo "Created default config at ", cfgPath
     except CatchableError as e:
-      echo "NimLaunch warning: unable to write default ctx.config at ", cfgPath,
+      echo "NimLaunch warning: unable to write default config at ", cfgPath,
           " (", e.name, "): ", e.msg
 
   ## Parse TOML
@@ -254,7 +254,7 @@ proc initLauncherConfig*() =
   try:
     tbl = toml.parseFile(cfgPath)
   except CatchableError as e:
-    echo "NimLaunch ctx.config error: failed to parse ", cfgPath
+    echo "NimLaunch config error: failed to parse ", cfgPath
     echo "  ", e.name, ": ", e.msg
     echo "  NimLaunch is ignoring this file and using built-in defaults for this session."
     echo "  Fix the TOML file and restart NimLaunch to restore your saved settings."

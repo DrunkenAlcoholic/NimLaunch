@@ -72,8 +72,8 @@ proc scanFilesFast*(query: string): seq[string] =
       let p = startProcess(fdExe, args = args, options = {poUsePath,
           poStdErrToStdOut})
       defer: close(p)
-      let output = p.outputStream.readAll()
-      for line in output.splitLines():
+      var line = ""
+      while p.outputStream.readLine(line) and result.len < limit:
         if line.len > 0: result.add(line)
       return
 
@@ -83,8 +83,8 @@ proc scanFilesFast*(query: string): seq[string] =
       let p = startProcess(locExe, args = @["-i", "-l", $limit, query],
                            options = {poUsePath, poStdErrToStdOut})
       defer: close(p)
-      let output = p.outputStream.readAll()
-      for line in output.splitLines():
+      var line = ""
+      while p.outputStream.readLine(line) and result.len < limit:
         if line.len > 0: result.add(line)
       return
 

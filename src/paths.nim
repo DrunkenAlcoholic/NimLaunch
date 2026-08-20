@@ -1,4 +1,4 @@
-## paths.nim — shared helpers for ctx.config/cache and application search paths.
+## paths.nim — shared helpers for config/cache and application search paths.
 
 import std/[os, strutils, sets]
 
@@ -16,7 +16,7 @@ proc getXdgHome(envVar, defaultSuffix: string): string =
   getHomeDir() / defaultSuffix
 
 proc userConfigHome*(): string =
-  ## Return XDG ctx.config home (respects $XDG_CONFIG_HOME).
+  ## Return XDG config home (respects $XDG_CONFIG_HOME).
   getXdgHome("XDG_CONFIG_HOME", DefaultXdgConfigHome)
 
 proc userCacheHome*(): string =
@@ -24,7 +24,7 @@ proc userCacheHome*(): string =
   getXdgHome("XDG_CACHE_HOME", DefaultXdgCacheHome)
 
 proc configDir*(): string =
-  ## Return the base ctx.config directory for NimLaunch (~/.config/nimlaunch).
+  ## Return the base config directory for NimLaunch (~/.config/nimlaunch).
   userConfigHome() / AppName
 
 proc cacheDir*(): string =

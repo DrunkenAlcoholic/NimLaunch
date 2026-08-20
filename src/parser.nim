@@ -8,17 +8,19 @@ import ./state # DesktopApp
 
 proc stripFieldCodes*(s: string): string =
   ## Remove .desktop "field codes" from Exec lines (e.g. %f, %F, %u, %U, %i, %c, %k).
-  ## We keep '%%' as a literal '%' (the spec’s escape), everything else `%<alpha>` is dropped.
+  if '%' notin s:
+    return s
   result = newStringOfCap(s.len)
   var i = 0
   while i < s.len:
     if s[i] == '%' and i+1 < s.len:
       let n = s[i+1]
       if n == '%':
-        result.add('%'); inc i, 2 # '%%' → '%'
+        result.add('%')
+        inc i, 2
         continue
       if n.isAlphaAscii:
-        inc i, 2 # drop %X
+        inc i, 2
         continue
     result.add s[i]
     inc i
