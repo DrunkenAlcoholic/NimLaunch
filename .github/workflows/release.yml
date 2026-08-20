@@ -49,18 +49,21 @@ jobs:
       - name: Build Portable Release Binary via Zig
         run: nimble -y zigGeneric
 
-      - name: Package Release Tarball
+      - name: Package Release Assets
         run: |
           ARCHIVE="nimlaunch-v${{ steps.vars.outputs.VERSION }}-linux-x86_64.tar.gz"
           tar -czf "$ARCHIVE" bin/nimlaunch LICENSE README.md examples
           sha256sum "$ARCHIVE" > "${ARCHIVE}.sha256"
+          sha256sum bin/nimlaunch > bin/nimlaunch.sha256
+          BIN_SHA256=$(awk '{print $1}' bin/nimlaunch.sha256)
           echo "ARCHIVE_NAME=$ARCHIVE" >> "$GITHUB_ENV"
-          echo "SHA256=$(awk '{print $1}' ${ARCHIVE}.sha256)" >> "$GITHUB_ENV"
+          echo "BIN_SHA256=$BIN_SHA256" >> "$GITHUB_ENV"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
+            bin/nimlaunch
             ${{ env.ARCHIVE_NAME }}
             ${{ env.ARCHIVE_NAME }}.sha256
           draft: false
@@ -69,7 +72,7 @@ jobs:
 
     outputs:
       version: ${{ steps.vars.outputs.VERSION }}
-      sha256: ${{ env.SHA256 }}
+      sha256: ${{ env.BIN_SHA256 }}
 
   deploy-aur:
     needs: build-release
