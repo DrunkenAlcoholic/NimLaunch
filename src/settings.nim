@@ -397,6 +397,7 @@ proc initLauncherConfig*() =
     ctx.config.borderWidth = 64
   if ctx.config.displayIndex < 0:
     ctx.config.displayIndex = 0
+  ctx.config.pollIntervalMs = clamp(ctx.config.pollIntervalMs, 1, 1000)
   ctx.config.opacity = clamp(ctx.config.opacity, 0.1, 1.0)
 
   ## derived geometry

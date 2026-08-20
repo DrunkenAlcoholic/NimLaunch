@@ -75,7 +75,9 @@ proc addDesktopActionRows(rows: var seq[Action]; app: DesktopApp) =
       label: app.name & " · " & desktopAction.name,
       exec: desktopAction.exec,
       appData: app,
-      iconName: iconName
+      iconName: iconName,
+      desktopName: desktopAction.name,
+      desktopIcon: desktopAction.icon
     )
 
 # ── Single-instance helpers ────────────────────────────────────────────
@@ -620,11 +622,11 @@ proc performAction*(a: Action) =
       gui.notifyStatus("Failed to open: " & a.label, 1600)
       exitAfter = false
   of akApp:
-    ## safer: strip .desktop field codes before launching
-    let sanitized = parser.stripFieldCodes(a.exec).strip()
-    let args = parser.tokenize(sanitized)
+    let expansion = parser.expandExecArgs(a.exec, a.appData.name,
+        a.appData.icon, a.appData.desktopFile)
+    let args = expansion.args
     var success = false
-    if args.len > 0:
+    if expansion.valid and args.len > 0:
       success = spawnProcess(args[0], args[1..^1])
     if success:
       recordAppLaunch(a.label)
@@ -632,11 +634,11 @@ proc performAction*(a: Action) =
       gui.notifyStatus("Failed: " & a.label, 1600)
       exitAfter = false
   of akAppAction:
-    ## safer: strip .desktop field codes before launching
-    let sanitized = parser.stripFieldCodes(a.exec).strip()
-    let args = parser.tokenize(sanitized)
+    let expansion = parser.expandExecArgs(a.exec, a.desktopName,
+        a.desktopIcon, a.appData.desktopFile)
+    let args = expansion.args
     var success = false
-    if args.len > 0:
+    if expansion.valid and args.len > 0:
       success = spawnProcess(args[0], args[1..^1])
     if success:
       recordAppLaunch(a.appData.name)
@@ -691,7 +693,7 @@ proc performAction*(a: Action) =
 # ── Input/navigation helpers ───────────────────────────────────────────
 proc deleteLastInputChar*() =
   if ctx.inputText.len > 0:
-    ctx.inputText.setLen(ctx.inputText.len - 1)
+    deleteLastUtf8Rune(ctx.inputText)
     ctx.lastInputChangeMs = gui.nowMs()
     buildActions()
 

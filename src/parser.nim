@@ -6,25 +6,6 @@ import ./state # DesktopApp
 
 # ── Internal helpers ────────────────────────────────────────────────────
 
-proc stripFieldCodes*(s: string): string =
-  ## Remove .desktop "field codes" from Exec lines (e.g. %f, %F, %u, %U, %i, %c, %k).
-  if '%' notin s:
-    return s
-  result = newStringOfCap(s.len)
-  var i = 0
-  while i < s.len:
-    if s[i] == '%' and i+1 < s.len:
-      let n = s[i+1]
-      if n == '%':
-        result.add('%')
-        inc i, 2
-        continue
-      if n.isAlphaAscii:
-        inc i, 2
-        continue
-    result.add s[i]
-    inc i
-
 proc tokenize*(cmd: string): seq[string] =
   ## Shell-ish tokenizer for Exec= lines.
   ## Handles simple quotes, backslash escapes inside double-quotes,
@@ -60,17 +41,65 @@ proc tokenize*(cmd: string): seq[string] =
   if cur.len > 0:
     result.add cur
 
+proc expandExecToken(token, name, icon, desktopFile: string;
+    args: var seq[string]): bool =
+  ## Expand field codes in one token and append any resulting arguments.
+  var expanded = newStringOfCap(token.len + name.len)
+  var discardToken = false
+  var i = 0
+  while i < token.len:
+    if token[i] != '%':
+      expanded.add token[i]
+      inc i
+    elif i + 1 >= token.len:
+      return false
+    else:
+      case token[i + 1]
+      of '%':
+        expanded.add '%'
+      of 'f', 'F', 'u', 'U':
+        discardToken = true
+      of 'i':
+        if token != "%i":
+          return false
+        if icon.len > 0:
+          args.add "--icon"
+          args.add icon
+        return true
+      of 'c':
+        expanded.add name
+      of 'k':
+        expanded.add desktopFile
+      of 'd', 'D', 'n', 'N', 'v', 'm':
+        discard
+      else:
+        return false
+      inc i, 2
+  if not discardToken and expanded.len > 0:
+    args.add expanded
+  true
+
+proc expandExecArgs*(exec: string; name = ""; icon = "";
+    desktopFile = ""): tuple[args: seq[string]; valid: bool] =
+  ## Expand Desktop Entry field codes into arguments without invoking a shell.
+  result.valid = true
+  let tokens: seq[string] = tokenize(exec)
+  for token in tokens:
+    if not expandExecToken(token, name, icon, desktopFile, result.args):
+      result.args.setLen(0)
+      result.valid = false
+      return
+
+proc stripFieldCodes*(s: string): string =
+  ## Remove Desktop Entry field codes for command identity comparisons.
+  let expanded = expandExecArgs(s)
+  if expanded.valid:
+    result = expanded.args.join(" ")
+
 proc isEnvAssign(tok: string): bool =
   ## True if token is an environment assignment (e.g., FOO=bar).
   let eq = tok.find('=')
   eq > 0 and tok[0..eq-1].allCharsInSet({'A'..'Z', 'a'..'z', '0'..'9', '_'})
-
-proc containsIgnoreCase(a: openArray[string], needle: string): bool =
-  ## Case-insensitive membership test for small arrays.
-  for x in a:
-    if x.cmpIgnoreCase(needle) == 0:
-      return true
-  false
 
 # ── Exec-line utilities ─────────────────────────────────────────────────
 
@@ -83,8 +112,10 @@ proc getBaseExec*(exec: string): string =
   ##   "flatpak run com.app.Name"               → "com.app.Name"
   ##   "snap run app"                           → "app"
   ##   "sh -c 'prog --opt'"                     → "prog"
-  let cleaned = stripFieldCodes(exec).strip()
-  var toks = tokenize(cleaned)
+  let expanded = expandExecArgs(exec)
+  if not expanded.valid:
+    return ""
+  var toks = expanded.args
   if toks.len == 0:
     return ""
 
@@ -125,7 +156,7 @@ proc getBaseExec*(exec: string): string =
 # ── Locale helpers ──────────────────────────────────────────────────────
 
 proc localeChain(): seq[string] =
-  ## Build a locale preference chain like: "en_AU", "en", then fallbacks.
+  ## Build locale preferences from the active message locale.
   let envs = [getEnv("LC_ALL"), getEnv("LC_MESSAGES"), getEnv("LANG")]
   var base = ""
   for e in envs:
@@ -133,32 +164,40 @@ proc localeChain(): seq[string] =
       base = e
       break
   if base.len > 0:
-    var s = base
-    let dot = s.find('.'); if dot >= 0: s = s[0 ..< dot]
-    let at = s.find('@'); if at >= 0: s = s[0 ..< at]
-    result.add s
-    let us = s.find('_')
+    var locale = base
+    let dot = locale.find('.')
+    if dot >= 0:
+      let modifierPos = locale.find('@', dot)
+      if modifierPos >= 0:
+        locale = locale[0 ..< dot] & locale[modifierPos .. ^1]
+      else:
+        locale = locale[0 ..< dot]
+    if locale == "C" or locale == "POSIX":
+      return
+    let at = locale.find('@')
+    let modifier = if at >= 0: locale[at + 1 .. ^1] else: ""
+    let core = if at >= 0: locale[0 ..< at] else: locale
+    let us = core.find('_')
+    let language = if us >= 0: core[0 ..< us] else: core
+    if core.len > 0:
+      if modifier.len > 0:
+        result.add core & "@" & modifier
+      result.add core
     if us >= 0:
-      result.add s[0 ..< us] # language only (e.g. "en")
-    elif s.len >= 2:
-      result.add s[0 ..< 2]
-  ## Always finish with plain English fallback, once.
-  if not result.containsIgnoreCase("en"):
-    result.add "en"
+      if modifier.len > 0:
+        result.add language & "@" & modifier
+      result.add language
 
 proc getBestValue*(entries: Table[string, string], baseKey: string): string =
   ## Return the most specific value for *baseKey* following .desktop rules.
-  ## Order: exact key → key[lang_COUNTRY] → key[lang] → first key[anything] → "".
-  if entries.hasKey(baseKey):
-    return entries[baseKey]
+  ## Order: locale preferences, then the unlocalized fallback.
   let prefs = localeChain()
   for loc in prefs:
     let k = baseKey & "[" & loc & "]"
     if entries.hasKey(k):
       return entries[k]
-  for key, val in entries:
-    if key.len > baseKey.len+1 and key.startsWith(baseKey & "["):
-      return val
+  if entries.hasKey(baseKey):
+    return entries[baseKey]
   ""
 
 proc splitDesktopList(value: string): seq[string] =
@@ -211,12 +250,13 @@ proc parseDesktopFile*(path: string): Option[DesktopApp] =
         actionSections[actionId][key] = value
 
   let name = getBestValue(kv, "Name")
-  let exec = getBestValue(kv, "Exec")
+  let exec = kv.getOrDefault("Exec", "")
   let categories = kv.getOrDefault("Categories", "")
   let icon = kv.getOrDefault("Icon", "")
   let noDisplay = kv.getOrDefault("NoDisplay", "false").toLowerAscii() == "true"
   let hidden = kv.getOrDefault("Hidden", "false").toLowerAscii() == "true"
   let terminalApp = kv.getOrDefault("Terminal", "false").toLowerAscii() == "true"
+  let execExpansion = expandExecArgs(exec, name, icon, path)
 
   ## Category filter: exclude Settings/System (exact tokens, case-insensitive)
   var catHit = false
@@ -236,7 +276,8 @@ proc parseDesktopFile*(path: string): Option[DesktopApp] =
 
   let launchable =
     name.len > 0 and exec.len > 0 and
-    not noDisplay and not hidden and not terminalApp and not catHit and not tryExecMissing
+    execExpansion.valid and not noDisplay and not hidden and not terminalApp and
+    not catHit and not tryExecMissing
 
   if launchable:
     var desktopActions: seq[DesktopEntryAction] = @[]
@@ -246,12 +287,13 @@ proc parseDesktopFile*(path: string): Option[DesktopApp] =
         continue
       let section = actionSections[actionId]
       let actionName = getBestValue(section, "Name")
-      let actionExec = getBestValue(section, "Exec")
+      let actionExec = section.getOrDefault("Exec", "")
       if actionName.len == 0 or actionExec.len == 0:
         continue
-      let actionIcon = getBestValue(section, "Icon")
+      let actionIcon = section.getOrDefault("Icon", "")
+      let actionExpansion = expandExecArgs(actionExec, actionName, actionIcon, path)
       let actionNoDisplay = section.getOrDefault("NoDisplay", "false").toLowerAscii() == "true"
-      if actionNoDisplay:
+      if actionNoDisplay or not actionExpansion.valid:
         continue
       desktopActions.add DesktopEntryAction(
         id: actionId,
@@ -266,6 +308,7 @@ proc parseDesktopFile*(path: string): Option[DesktopApp] =
       name: name,
       nameLower: name.toLowerAscii(),
       exec: exec,
+      desktopFile: path,
       icon: icon,
       hasIcon: icon.len > 0,
       desktopActions: desktopActions

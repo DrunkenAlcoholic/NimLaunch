@@ -8,5 +8,6 @@ release_notes*
 tests/t*
 !tests/t*.nim
 bin/t*
+/bin/nimlaunch
 logs_*
 *.log

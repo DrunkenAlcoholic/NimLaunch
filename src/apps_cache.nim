@@ -3,7 +3,7 @@
 import std/[os, json, tables, sequtils, times, options, strutils, algorithm, hashes]
 import ./[state, parser, paths]
 
-const CacheFormatVersion = 7
+const CacheFormatVersion = 8
 
 proc desktopDirFingerprint(dir: string): tuple[newest: int64; signature: string] =
   ## Build a lightweight fingerprint for *.desktop files under *dir*.
@@ -70,8 +70,8 @@ proc loadApplications*() =
       let opt = parseDesktopFile(path)
       if isSome(opt):
         let app = get(opt)
-        let sanitizedExec = parser.stripFieldCodes(app.exec).strip()
-        var key = sanitizedExec.toLowerAscii
+        let expandedExec = parser.expandExecArgs(app.exec)
+        var key = expandedExec.args.join("\x1f").toLowerAscii
         if key.len == 0:
           key = getBaseExec(app.exec).toLowerAscii
         if key.len == 0:

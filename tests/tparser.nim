@@ -1,4 +1,4 @@
-import std/[unittest, options, os]
+import std/[unittest, options, os, tables]
 import ../src/parser
 
 suite "Parser tests":
@@ -15,9 +15,33 @@ suite "Parser tests":
     check toks == @["cmd", "hello \"world\""]
 
   test "stripFieldCodes":
-    check stripFieldCodes("code %F") == "code "
-    check stripFieldCodes("foo %u %i %c") == "foo   "
+    check stripFieldCodes("code %F") == "code"
+    check stripFieldCodes("foo %u %i %c") == "foo"
     check stripFieldCodes("100%% sure") == "100% sure"
+
+  test "expand Desktop Entry field codes":
+    let expanded = expandExecArgs("viewer %F %i --name=%c %k %%",
+        "My App", "my-icon", "/tmp/my-app.desktop")
+    check expanded.valid
+    check expanded.args == @[
+      "viewer", "--icon", "my-icon", "--name=My App",
+      "/tmp/my-app.desktop", "%"
+    ]
+    check not expandExecArgs("viewer %x").valid
+
+  test "prefer localized values before the default":
+    let hadLcAll = existsEnv("LC_ALL")
+    let oldLcAll = getEnv("LC_ALL")
+    defer:
+      if hadLcAll: putEnv("LC_ALL", oldLcAll)
+      else: delEnv("LC_ALL")
+    putEnv("LC_ALL", "fr_FR.UTF-8")
+    let entries = {
+      "Name": "English",
+      "Name[fr]": "Français",
+      "Name[fr_FR]": "Français (France)"
+    }.toTable
+    check getBestValue(entries, "Name") == "Français (France)"
 
   test "getBaseExec":
     check getBaseExec("/usr/bin/kitty --single-instance") == "kitty"
@@ -51,6 +75,7 @@ Icon=tab-new
     let app = get(parsed)
     check app.name == "SuperApp"
     check app.exec == "superapp %U"
+    check app.desktopFile == tmp
     check app.icon == "superapp-icon"
     check app.hasIcon == true
     check app.desktopActions.len == 1
@@ -75,3 +100,6 @@ Icon=tab-new
     writeFile(tmp, "[Desktop Entry]\nName=SettingsApp\nExec=gnome-control-center\nCategories=GNOME;GTK;Settings;\n")
     check isNone(parseDesktopFile(tmp))
 
+    # Unknown field codes invalidate the entry.
+    writeFile(tmp, "[Desktop Entry]\nName=InvalidApp\nExec=invalid %x\n")
+    check isNone(parseDesktopFile(tmp))

@@ -23,7 +23,7 @@ type
 
   ## A single launchable application parsed from a `.desktop` file.
   DesktopApp* = object
-    name*, nameLower*, exec*: string
+    name*, nameLower*, exec*, desktopFile*: string
     icon*: string
     hasIcon*: bool
     desktopActions*: seq[DesktopEntryAction]
@@ -111,6 +111,7 @@ type
     exec*: string        # what actually gets executed or opened
     appData*: DesktopApp # optional for akApp; empty for other kinds
     iconName*: string
+    desktopName*, desktopIcon*: string
     shortcutMode*: ShortcutMode = smUrl
     powerMode*: PowerActionMode = pamTerminal
     stayOpen*: bool = false
