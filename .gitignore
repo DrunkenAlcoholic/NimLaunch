@@ -8,4 +8,5 @@ release_notes*
 tests/t*
 !tests/t*.nim
 bin/t*
-
+logs_*
+*.log
