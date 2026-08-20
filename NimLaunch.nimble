@@ -58,6 +58,8 @@ task test, "Run all test suites":
   exec "nim c -r -o:./bin/tfuzzy tests/tfuzzy.nim"
   exec "nim c -r -o:./bin/tparser tests/tparser.nim"
   exec "nim c -r -o:./bin/tconfig tests/tconfig.nim"
+  exec "nim c -r -o:./bin/tcache tests/tcache.nim"
+  exec "nim c -r -o:./bin/tutils tests/tutils.nim"
 
 task clean, "Remove build artifacts and caches":
   rmDir("bin")
