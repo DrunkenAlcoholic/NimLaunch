@@ -24,15 +24,7 @@ jobs:
         with:
           version: 0.13.0
 
-      - name: Cache SDL3
-        id: cache-sdl
-        uses: actions/cache@v4
-        with:
-          path: /home/runner/sdl3-prefix
-          key: sdl3-${{ runner.os }}-v1
-
       - name: Setup SDL3
-        if: steps.cache-sdl.outputs.cache-hit != 'true'
         uses: libsdl-org/setup-sdl@main
         id: sdl
         with:
@@ -40,13 +32,14 @@ jobs:
           version-sdl-image: 3-latest
           version-sdl-ttf: 3-latest
           install-linux-dependencies: true
-          prefix: /home/runner/sdl3-prefix
 
-      - name: Configure SDL3 Environment
+      - name: Configure Environment
         run: |
-          echo "LD_LIBRARY_PATH=/home/runner/sdl3-prefix/lib:$LD_LIBRARY_PATH" >> "$GITHUB_ENV"
-          echo "PKG_CONFIG_PATH=/home/runner/sdl3-prefix/lib/pkgconfig:$PKG_CONFIG_PATH" >> "$GITHUB_ENV"
-          echo "/home/runner/sdl3-prefix/bin" >> "$GITHUB_PATH"
+          chmod +x ./zigcc
+          echo "$GITHUB_WORKSPACE" >> "$GITHUB_PATH"
+          echo "LD_LIBRARY_PATH=${{ steps.sdl.outputs.prefix }}/lib:$LD_LIBRARY_PATH" >> "$GITHUB_ENV"
+          echo "PKG_CONFIG_PATH=${{ steps.sdl.outputs.prefix }}/lib/pkgconfig:$PKG_CONFIG_PATH" >> "$GITHUB_ENV"
+          echo "${{ steps.sdl.outputs.prefix }}/bin" >> "$GITHUB_PATH"
 
       - name: Install ShellCheck
         run: sudo apt-get update && sudo apt-get install -y shellcheck
@@ -64,6 +57,4 @@ jobs:
         run: nimble -y nimGeneric
 
       - name: Verify Portable Release Build (Zig)
-        run: |
-          chmod +x ./zigcc
-          nimble -y zigGeneric
+        run: nimble -y zigGeneric
