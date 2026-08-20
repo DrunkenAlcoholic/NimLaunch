@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Nim
+        uses: jiro4989/setup-nim-action@v2
+        with:
+          nim-version: 'stable'
+
+      - name: Setup SDL3
+        uses: libsdl-org/setup-sdl@main
+        id: sdl
+        with:
+          version: 3-latest
+          version-sdl-image: 3-latest
+          version-sdl-ttf: 3-latest
+          install-linux-dependencies: true
+
+      - name: Install ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Lint Shell Scripts
+        run: shellcheck examples/scripts/*.sh zigcc
+
+      - name: Static Semantic & Type Check
+        run: nim check src/nimlaunch.nim
+
+      - name: Run Test Suite
+        run: nimble test
+
+      - name: Verify Generic Release Build
+        run: |
+          export LD_LIBRARY_PATH="${{ steps.sdl.outputs.prefix }}/lib:$LD_LIBRARY_PATH"
+          export PKG_CONFIG_PATH="${{ steps.sdl.outputs.prefix }}/lib/pkgconfig:$PKG_CONFIG_PATH"
+          nimble -y nimGeneric

@@ -7,3 +7,5 @@ release_notes.md
 release_notes*
 tests/t*
 !tests/t*.nim
+bin/t*
+

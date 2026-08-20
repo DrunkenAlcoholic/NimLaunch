@@ -1,0 +1,109 @@
+name: Release & AUR Deployment
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract Tag Version
+        id: vars
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Nim
+        uses: jiro4989/setup-nim-action@v2
+        with:
+          nim-version: 'stable'
+
+      - name: Setup SDL3
+        uses: libsdl-org/setup-sdl@main
+        id: sdl
+        with:
+          version: 3-latest
+          version-sdl-image: 3-latest
+          version-sdl-ttf: 3-latest
+          install-linux-dependencies: true
+
+      - name: Build Optimized Release Binary
+        run: |
+          export LD_LIBRARY_PATH="${{ steps.sdl.outputs.prefix }}/lib:$LD_LIBRARY_PATH"
+          export PKG_CONFIG_PATH="${{ steps.sdl.outputs.prefix }}/lib/pkgconfig:$PKG_CONFIG_PATH"
+          nimble -y nimGeneric
+
+      - name: Package Release Tarball
+        run: |
+          ARCHIVE="nimlaunch-v${{ steps.vars.outputs.VERSION }}-linux-x86_64.tar.gz"
+          tar -czf "$ARCHIVE" bin/nimlaunch LICENSE README.md examples
+          sha256sum "$ARCHIVE" > "${ARCHIVE}.sha256"
+          echo "ARCHIVE_NAME=$ARCHIVE" >> "$GITHUB_ENV"
+          echo "SHA256=$(awk '{print $1}' ${ARCHIVE}.sha256)" >> "$GITHUB_ENV"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ env.ARCHIVE_NAME }}
+            ${{ env.ARCHIVE_NAME }}.sha256
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+
+    outputs:
+      version: ${{ steps.vars.outputs.VERSION }}
+      sha256: ${{ env.SHA256 }}
+
+  deploy-aur:
+    needs: build-release
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+
+    steps:
+      - name: Install AUR Deployment Tools
+        run: |
+          pacman -Syu --noconfirm --needed git openssh sudo binutils
+
+      - name: Setup Non-Root Build User
+        run: |
+          useradd -m builder
+          echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+
+      - name: Setup SSH Authentication
+        env:
+          AUR_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p /root/.ssh /home/builder/.ssh
+          echo "$AUR_KEY" > /home/builder/.ssh/aur_ed25519
+          chmod 600 /home/builder/.ssh/aur_ed25519
+          ssh-keyscan -H aur.archlinux.org >> /home/builder/.ssh/known_hosts
+          chown -R builder:builder /home/builder/.ssh
+
+      - name: Update AUR Repository
+        env:
+          NEW_VERSION: ${{ needs.build-release.outputs.version }}
+          NEW_SHA256: ${{ needs.build-release.outputs.sha256 }}
+        run: |
+          su - builder -c "
+            git config --global user.name 'Vyrnexis'
+            git config --global user.email 'Vyrnexis@gmail.com'
+            export GIT_SSH_COMMAND='ssh -i ~/.ssh/aur_ed25519 -o StrictHostKeyChecking=accept-new'
+            git clone ssh://aur@aur.archlinux.org/nimlaunch-bin.git
+            cd nimlaunch-bin
+            sed -i \"s/^pkgver=.*/pkgver=${NEW_VERSION}/\" PKGBUILD
+            sed -i \"s/^pkgrel=.*/pkgrel=1/\" PKGBUILD
+            sed -i \"s/^sha256sums=('.*')/sha256sums=('${NEW_SHA256}')/\" PKGBUILD
+            makepkg --printsrcinfo > .SRCINFO
+            git add PKGBUILD .SRCINFO
+            git diff --staged
+            git commit -m \"chore: update to v${NEW_VERSION}\"
+            git push origin master
+          "

@@ -54,9 +54,10 @@ task zigDebug, "Debug build with Zig compiler":
   runBuild(ZigDebugFlags)
 
 task test, "Run all test suites":
-  exec "nim c -r tests/tfuzzy.nim"
-  exec "nim c -r tests/tparser.nim"
-  exec "nim c -r tests/tconfig.nim"
+  mkDir("bin")
+  exec "nim c -r -o:./bin/tfuzzy tests/tfuzzy.nim"
+  exec "nim c -r -o:./bin/tparser tests/tparser.nim"
+  exec "nim c -r -o:./bin/tconfig tests/tconfig.nim"
 
 task clean, "Remove build artifacts and caches":
   rmDir("bin")
