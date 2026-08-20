@@ -2,7 +2,7 @@
 
 import std/strutils
 import sdl3
-import ./[state, app_core, gui]
+import ./[state, app_core, gui, utils]
 
 proc executeVimCommand*()
 proc syncVimCommand*()
@@ -123,7 +123,7 @@ proc handleVimCommandKey*(sym: Keycode; ctrlHeld: bool;
     true
   of K_BACKSPACE, K_DELETE:
     if ctx.vim.buffer.len > 0:
-      ctx.vim.buffer.setLen(ctx.vim.buffer.len - 1)
+      deleteLastUtf8Rune(ctx.vim.buffer)
       syncVimCommand()
     else:
       closeVimCommand(restoreInput = true, preserveBuffer = false)
@@ -132,7 +132,7 @@ proc handleVimCommandKey*(sym: Keycode; ctrlHeld: bool;
   else:
     if ctrlHeld and sym == K_h:
       if ctx.vim.buffer.len > 0:
-        ctx.vim.buffer.setLen(ctx.vim.buffer.len - 1)
+        deleteLastUtf8Rune(ctx.vim.buffer)
         syncVimCommand()
       else:
         closeVimCommand(restoreInput = true, preserveBuffer = false)

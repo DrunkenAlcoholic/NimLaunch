@@ -7,20 +7,19 @@ if [[ -f "./bin/nimlaunch" ]]; then
     NIMLAUNCH="./bin/nimlaunch"
 fi
 
-# Get list of paired devices, attach icon, and pipe to NimLaunch
+# Keep each MAC address in the selected label so device names stay unambiguous.
 choice=$(bluetoothctl devices | awk '{
   mac = $2;
   $1 = ""; $2 = "";
-  # Remove leading spaces
   sub(/^[ \t]+/, "");
-  # Pass literal null byte using \000 in awk
-  printf "%s\000icon\x1fbluetooth\n", $0
+  printf "%s %s\000icon\x1fbluetooth\n", mac, $0
 }' | "$NIMLAUNCH" --dmenu)
 
-[ -n "$choice" ] || exit 1
+[[ -n "$choice" ]] || exit 1
 
-# Extract MAC address of chosen device
-mac=$(bluetoothctl devices | grep "$choice" | awk '{print $2}')
+# Extract the preserved MAC address without searching by device name.
+mac=${choice%% *}
+[[ "$mac" =~ ^([[:xdigit:]]{2}:){5}[[:xdigit:]]{2}$ ]] || exit 1
 
 # Check if currently connected to toggle state
 if bluetoothctl info "$mac" | grep -q "Connected: yes"; then

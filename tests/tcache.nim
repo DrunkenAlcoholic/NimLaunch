@@ -15,12 +15,13 @@ suite "Cache serialization tests":
       name: "Test App",
       nameLower: "test app",
       exec: "app %U",
+      desktopFile: "/usr/share/applications/test-app.desktop",
       icon: "test-app",
       hasIcon: true,
       desktopActions: @[action1]
     )
     let orig = CacheData(
-      formatVersion: 7,
+      formatVersion: 8,
       appDirs: @["/usr/share/applications"],
       dirMtimes: @[1700000000'i64],
       dirSignatures: @["1:1700000000:1700000000:1024:9999"],
@@ -40,6 +41,7 @@ suite "Cache serialization tests":
     let restoredApp = restored.apps[0]
     check restoredApp.name == "Test App"
     check restoredApp.exec == "app %U"
+    check restoredApp.desktopFile == "/usr/share/applications/test-app.desktop"
     check restoredApp.icon == "test-app"
     check restoredApp.hasIcon == true
     check restoredApp.desktopActions.len == 1

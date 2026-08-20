@@ -28,3 +28,12 @@ suite "Utils tests":
     check normalizePrefix(":G:") == "g"
     check normalizePrefix("  :svc:  ") == "svc"
     check normalizePrefix("sys") == "sys"
+
+  test "deleteLastUtf8Rune removes complete code points":
+    var text = "aé"
+    deleteLastUtf8Rune(text)
+    check text == "a"
+    deleteLastUtf8Rune(text)
+    check text == ""
+    deleteLastUtf8Rune(text)
+    check text == ""

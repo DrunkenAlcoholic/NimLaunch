@@ -5,14 +5,14 @@ import std/[os, strutils, sets]
 const
   AppName = "nimlaunch"
   DefaultXdgDataDirs = "/usr/local/share:/usr/share"
+  DefaultXdgDataHome = ".local/share"
   DefaultXdgConfigHome = ".config"
   DefaultXdgCacheHome = ".cache"
 
 proc getXdgHome(envVar, defaultSuffix: string): string =
   let fromEnv = getEnv(envVar)
-  if fromEnv.len > 0:
-    return fromEnv.strip(chars = {DirSep, AltSep}, leading = false,
-        trailing = true)
+  if fromEnv.len > 0 and fromEnv.isAbsolute:
+    return normalizedPath(fromEnv)
   getHomeDir() / defaultSuffix
 
 proc userConfigHome*(): string =
@@ -33,18 +33,19 @@ proc cacheDir*(): string =
 
 proc applicationDirs*(): seq[string] =
   ## Return the list of application directories to scan.
-  ## Order: user-local, user flatpak, system (XDG), system flatpak.
+  ## Order: user data, user Flatpak, system XDG, system Flatpak.
+  let userDataHome = getXdgHome("XDG_DATA_HOME", DefaultXdgDataHome)
   var dirs: seq[string] = @[
-    getHomeDir() / ".local/share/applications",
-    getHomeDir() / ".local/share/flatpak/exports/share/applications"
+    userDataHome / "applications",
+    userDataHome / "flatpak/exports/share/applications"
   ]
 
-  let xdgDataDirs = getEnv("XDG_DATA_DIRS", DefaultXdgDataDirs)
+  var xdgDataDirs = getEnv("XDG_DATA_DIRS")
+  if xdgDataDirs.len == 0:
+    xdgDataDirs = DefaultXdgDataDirs
   for dir in xdgDataDirs.split(':'):
-    if dir.len == 0: continue
-    let cleaned = dir.strip(chars = {DirSep, AltSep}, leading = false,
-        trailing = true)
-    dirs.add(cleaned / "applications")
+    if dir.len > 0 and dir.isAbsolute:
+      dirs.add(normalizedPath(dir) / "applications")
 
   dirs.add("/var/lib/flatpak/exports/share/applications")
 

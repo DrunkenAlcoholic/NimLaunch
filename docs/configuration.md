@@ -39,7 +39,7 @@ pollIntervalMs = 10
 - **`position_x`**, **`position_y`**: Used only when `center` is `false`.
 - **`vertical_align`**: Used only when centered. Valid values are `top`, `center`, and `one-third`.
 - **`display`**: Monitor index used when centered.
-- **`pollIntervalMs`**: Sleep duration in milliseconds per event loop. A higher value lowers CPU usage but decreases responsiveness (default: 10).
+- **`pollIntervalMs`**: Sleep duration in milliseconds per event loop, clamped to 1–1000. A higher value lowers CPU usage but decreases responsiveness (default: 10).
 
 ## Font
 

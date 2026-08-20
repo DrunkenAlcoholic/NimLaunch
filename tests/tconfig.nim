@@ -1,5 +1,5 @@
 import std/[unittest, os, strutils, tables]
-import ../src/[state, settings, app_core]
+import ../src/[state, settings, app_core, paths]
 
 suite "Configuration and Shortcuts tests":
   test "load shortcuts from TOML table":
@@ -53,3 +53,31 @@ suite "Configuration and Shortcuts tests":
 
     check ctx.groupQueryModes.hasKey("svc")
     check ctx.groupQueryModes["svc"] == gqmPass
+
+  test "clamp invalid polling intervals":
+    let cfgPath = getTempDir() / "nimlaunch_test_poll_interval.toml"
+    defer:
+      if fileExists(cfgPath): removeFile(cfgPath)
+    writeFile(cfgPath, defaultToml.replace("pollIntervalMs = 10",
+        "pollIntervalMs = -1"))
+    ctx.configOverridePath = cfgPath
+    initLauncherConfig()
+    check ctx.config.pollIntervalMs == 1
+
+  test "respect XDG data and root config paths":
+    let hadDataHome = existsEnv("XDG_DATA_HOME")
+    let oldDataHome = getEnv("XDG_DATA_HOME")
+    let hadConfigHome = existsEnv("XDG_CONFIG_HOME")
+    let oldConfigHome = getEnv("XDG_CONFIG_HOME")
+    defer:
+      if hadDataHome: putEnv("XDG_DATA_HOME", oldDataHome)
+      else: delEnv("XDG_DATA_HOME")
+      if hadConfigHome: putEnv("XDG_CONFIG_HOME", oldConfigHome)
+      else: delEnv("XDG_CONFIG_HOME")
+    let customData = getTempDir() / "nimlaunch-xdg-data"
+    putEnv("XDG_DATA_HOME", customData & DirSep)
+    putEnv("XDG_CONFIG_HOME", $DirSep)
+    let dirs = applicationDirs()
+    check dirs[0] == customData / "applications"
+    check userConfigHome() == $DirSep
+    check configDir() == $DirSep / "nimlaunch"

@@ -13,24 +13,24 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Extract Tag Version
         id: vars
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
 
       - name: Setup Nim
-        uses: jiro4989/setup-nim-action@v2
+        uses: jiro4989/setup-nim-action@cb1fc1270b117457dd0d9f610ec981fad3369cec # v2
         with:
           nim-version: 'stable'
 
       - name: Setup Zig
-        uses: mlugg/setup-zig@v1
+        uses: mlugg/setup-zig@53fc45b17fe98b52f92ee5ea08ff48a85a3e7eb7 # v1
         with:
           version: 0.13.0
 
       - name: Setup SDL3
-        uses: libsdl-org/setup-sdl@main
+        uses: libsdl-org/setup-sdl@afd98199e97f9c2aa739474be7e0886d149a5e47 # main
         id: sdl
         with:
           version: 3-latest
@@ -60,7 +60,7 @@ jobs:
           echo "BIN_SHA256=$BIN_SHA256" >> "$GITHUB_ENV"
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           name: NimLaunch v${{ steps.vars.outputs.VERSION }}
           make_latest: true

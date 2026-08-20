@@ -18,8 +18,8 @@ loads PNG/SVG icons through the SDL3 stack.
 
 ## Features
 - **Zero-Copy Fuzzy Matching:** Incredibly fast app search with typo tolerance, powered by `openArray[char]` zero-allocation string slicing.
-- **Asynchronous Icon Engine:** lock-free background threads decode PNG/SVG desktop icons, guaranteeing zero stuttering or disk I/O lag on the main UI thread.
-- **Binary State Caching:** Parses your `.desktop` entries and serializes them into a hyper-fast binary cache stream for instant booting.
+- **Asynchronous Icon Engine:** A background worker decodes PNG/SVG desktop icons without disk I/O on the main UI thread.
+- **Application State Caching:** Parsed `.desktop` entries are cached as JSON to avoid unnecessary rescans at startup.
 - Prefix commands: `:t`, `:c`, `:s`, `:r`, `!`, and custom groups.
 - Desktop entry actions for apps that expose secondary launch actions.
 - Vim mode (optional): `j/k` navigation, `/ : !` command bar, `gg/G`, `:q`, etc.

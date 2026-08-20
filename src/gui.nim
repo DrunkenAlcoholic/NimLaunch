@@ -1,7 +1,7 @@
 ## gui.nim — SDL3/TTF renderer for NimLaunch2
 ## Provides a thin API mirroring the original GUI (updateGuiColors, redrawWindow, etc.).
 
-import std/[strutils, times, tables, streams, osproc, math, os]
+import std/[strutils, times, tables, streams, osproc, math]
 import sdl3
 import sdl3_ttf
 import ./[state, sdl3_image, icon_resolver]
@@ -93,25 +93,21 @@ var
   iconReqChan: Channel[IconRequest]
   iconResChan: Channel[IconResponse]
   iconThread: Thread[void]
-  iconThreadRunning: bool
+  iconThreadStarted: bool
   iconPendingSet: Table[string, bool]
 
 proc iconWorker() {.thread.} =
-  while iconThreadRunning:
-    let (dataAvail, req) = iconReqChan.tryRecv()
-    if dataAvail:
-      if req.cacheKey == "SHUTDOWN":
-        break
-      let path = resolveIconPath(req.iconName, req.size)
-      var surf: ptr Surface = nil
-      if path.len > 0:
-        surf = loadIconSurface(path, req.size)
-      iconResChan.send(IconResponse(cacheKey: req.cacheKey, surface: surf))
-      var evt = Event(`type`: EVENT_USER)
-      discard pushEvent(evt)
-    else:
-      # Sleep briefly to avoid high CPU loop
-      sleep(5)
+  while true:
+    let req = iconReqChan.recv()
+    if req.cacheKey == "SHUTDOWN":
+      break
+    let path = resolveIconPath(req.iconName, req.size)
+    var surf: ptr Surface = nil
+    if path.len > 0:
+      surf = loadIconSurface(path, req.size)
+    iconResChan.send(IconResponse(cacheKey: req.cacheKey, surface: surf))
+    var evt = Event(`type`: EVENT_USER)
+    discard pushEvent(evt)
 
 proc getIconCacheSize*(): int =
   if st != nil: st.iconCache.len else: 0
@@ -592,15 +588,15 @@ proc initGui*() =
 
   iconReqChan.open()
   iconResChan.open()
-  iconThreadRunning = true
+  iconThreadStarted = true
   iconPendingSet = initTable[string, bool]()
   createThread(iconThread, iconWorker)
 
 proc shutdownGui*() =
-  if iconThreadRunning:
-    iconThreadRunning = false
+  if iconThreadStarted:
     iconReqChan.send(IconRequest(cacheKey: "SHUTDOWN"))
     joinThread(iconThread)
+    iconThreadStarted = false
     iconReqChan.close()
     iconResChan.close()
   destroyState()

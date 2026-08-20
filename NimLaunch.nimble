@@ -1,5 +1,6 @@
 # Package
 
+packageName   = "nimlaunch"
 version       = "0.11.3"
 author        = "Vyrnexis"
 description   = "NimLaunch in SDL3 for native X11 and Wayland"
