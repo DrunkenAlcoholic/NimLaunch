@@ -15,7 +15,7 @@ choice=$(bluetoothctl devices | awk '{
   sub(/^[ \t]+/, "");
   # Pass literal null byte using \000 in awk
   printf "%s\000icon\x1fbluetooth\n", $0
-}' | $NIMLAUNCH --dmenu)
+}' | "$NIMLAUNCH" --dmenu)
 
 [ -n "$choice" ] || exit 1
 

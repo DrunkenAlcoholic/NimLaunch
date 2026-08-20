@@ -51,7 +51,7 @@ if [[ ${#names[@]} -eq 0 ]]; then
 fi
 
 # Format output with steam icon and pipe to NimLaunch
-choice=$(printf '%b\n' "${names[@]/%/\\0icon\\x1fsteam}" | $NIMLAUNCH --dmenu -p "Steam:")
+choice=$(printf '%b\n' "${names[@]/%/\\0icon\\x1fsteam}" | "$NIMLAUNCH" --dmenu -p "Steam:")
 
 if [[ -n "$choice" ]] && [[ -n "${games["$choice"]}" ]]; then
     appid="${games["$choice"]}"

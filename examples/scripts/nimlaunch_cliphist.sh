@@ -13,7 +13,7 @@ selected=$(cliphist list | awk -F'\t' '{
     } else {
         print $0 "\0icon\x1fedit-paste"
     }
-}' | $NIMLAUNCH --dmenu -p "Clipboard:")
+}' | "$NIMLAUNCH" --dmenu -p "Clipboard:")
 
 if [[ -n "$selected" ]]; then
     echo "$selected" | cliphist decode | wl-copy

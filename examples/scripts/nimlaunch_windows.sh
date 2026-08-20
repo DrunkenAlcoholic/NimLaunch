@@ -7,7 +7,7 @@ if [[ -f "./bin/nimlaunch" ]]; then
     NIMLAUNCH="./bin/nimlaunch"
 fi
 
-selected=$(hyprctl clients -j | jq -r '.[] | select(.mapped == true) | "\(.address) | \(.title)\u0000icon\u001f\(.class)"' | $NIMLAUNCH --dmenu -p "Windows:")
+selected=$(hyprctl clients -j | jq -r '.[] | select(.mapped == true) | "\(.address) | \(.title)\u0000icon\u001f\(.class)"' | "$NIMLAUNCH" --dmenu -p "Windows:")
 
 if [[ -n "$selected" ]]; then
     address=$(echo "$selected" | awk '{print $1}')

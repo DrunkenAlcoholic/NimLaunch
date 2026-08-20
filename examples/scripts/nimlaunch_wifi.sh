@@ -14,7 +14,7 @@ selected=$(nmcli --fields "SECURITY,SSID" device wifi list | sed 1d | grep -v "^
     } else {
         print "🔓 " $2 "\0icon\x1fnetwork-wireless"
     }
-}' | $NIMLAUNCH --dmenu -p "WiFi:")
+}' | "$NIMLAUNCH" --dmenu -p "WiFi:")
 
 if [[ -n "$selected" ]]; then
     ssid=$(echo "$selected" | awk '{print $2}')
@@ -24,7 +24,7 @@ if [[ -n "$selected" ]]; then
         notify-send "WiFi" "Connecting to $ssid..." -i network-wireless
         nmcli connection up id "$ssid"
     else
-        pass=$(echo "" | $NIMLAUNCH --dmenu -p "Password for $ssid:")
+        pass=$(echo "" | "$NIMLAUNCH" --dmenu -p "Password for $ssid:")
         if [[ -n "$pass" ]]; then
             notify-send "WiFi" "Connecting to $ssid..." -i network-wireless
             nmcli device wifi connect "$ssid" password "$pass"
