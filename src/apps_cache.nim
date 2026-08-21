@@ -3,7 +3,7 @@
 import std/[os, json, tables, sequtils, times, options, strutils, algorithm, hashes]
 import ./[state, parser, paths]
 
-const CacheFormatVersion = 8
+const CacheFormatVersion = 9
 
 proc desktopDirFingerprint(dir: string): tuple[newest: int64; signature: string] =
   ## Build a lightweight fingerprint for *.desktop files under *dir*.

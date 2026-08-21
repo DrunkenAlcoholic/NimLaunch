@@ -96,10 +96,20 @@ Icon=tab-new
     writeFile(tmp, "[Desktop Entry]\nName=TerminalApp\nExec=htop\nTerminal=true\n")
     check isNone(parseDesktopFile(tmp))
 
-    # Settings category
-    writeFile(tmp, "[Desktop Entry]\nName=SettingsApp\nExec=gnome-control-center\nCategories=GNOME;GTK;Settings;\n")
-    check isNone(parseDesktopFile(tmp))
-
     # Unknown field codes invalidate the entry.
     writeFile(tmp, "[Desktop Entry]\nName=InvalidApp\nExec=invalid %x\n")
     check isNone(parseDesktopFile(tmp))
+
+  test "categories do not control application visibility":
+    let tmp = getTempDir() / "nimlaunch_test_categories.desktop"
+    defer:
+      if fileExists(tmp): removeFile(tmp)
+
+    writeFile(tmp,
+        "[Desktop Entry]\nName=SettingsApp\nExec=gnome-control-center\n" &
+        "Categories=GNOME;GTK;Settings;\n")
+    check isSome(parseDesktopFile(tmp))
+
+    writeFile(tmp,
+        "[Desktop Entry]\nName=SystemApp\nExec=system-monitor\nCategories=System;\n")
+    check isSome(parseDesktopFile(tmp))

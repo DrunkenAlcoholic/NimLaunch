@@ -214,7 +214,6 @@ proc parseDesktopFile*(path: string): Option[DesktopApp] =
   ##   • has Name & Exec
   ##   • NoDisplay=false
   ##   • Terminal=false
-  ##   • filters out exact "Settings" / "System" categories
   let fs = newFileStream(path, fmRead)
   if fs.isNil:
     return none(DesktopApp)
@@ -251,21 +250,11 @@ proc parseDesktopFile*(path: string): Option[DesktopApp] =
 
   let name = getBestValue(kv, "Name")
   let exec = kv.getOrDefault("Exec", "")
-  let categories = kv.getOrDefault("Categories", "")
   let icon = kv.getOrDefault("Icon", "")
   let noDisplay = kv.getOrDefault("NoDisplay", "false").toLowerAscii() == "true"
   let hidden = kv.getOrDefault("Hidden", "false").toLowerAscii() == "true"
   let terminalApp = kv.getOrDefault("Terminal", "false").toLowerAscii() == "true"
   let execExpansion = expandExecArgs(exec, name, icon, path)
-
-  ## Category filter: exclude Settings/System (exact tokens, case-insensitive)
-  var catHit = false
-  for tok in categories.split(';'):
-    let t = tok.strip()
-    if t.len == 0: continue
-    if t.cmpIgnoreCase("Settings") == 0 or t.cmpIgnoreCase("System") == 0:
-      catHit = true
-      break
 
   let tryExec = kv.getOrDefault("TryExec", "")
   var tryExecMissing = false
@@ -277,7 +266,7 @@ proc parseDesktopFile*(path: string): Option[DesktopApp] =
   let launchable =
     name.len > 0 and exec.len > 0 and
     execExpansion.valid and not noDisplay and not hidden and not terminalApp and
-    not catHit and not tryExecMissing
+    not tryExecMissing
 
   if launchable:
     var desktopActions: seq[DesktopEntryAction] = @[]
