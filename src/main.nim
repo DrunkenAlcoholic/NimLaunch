@@ -2,7 +2,7 @@ import std/[os, strutils, syncio]
 import sdl3
 import ./[state, app_core, gui, utils, settings, search, input, apps_cache, theme_session]
 
-const Version = "0.11.3"
+const Version = "0.11.4"
 
 # Print the command-line synopsis and available options.
 proc printUsage() =
